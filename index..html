@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Marine Service Portal</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body style="margin:0;padding:0;">
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef } = React;
+
+const ADMIN_TECH = "Duke";
+const ADMIN_PIN = "2024";
+const DEFAULT_TECHS = ["Meric","Duke","Steve","Chris"];
+const LOCS = ["Marina","Yard 1","Yard 2","Rack","Offsite"];
+const DMG = ["Gel Coat","Hull Crack","Rub Rail","Canvas/Cover","Upholstery","Mechanical","Electrical","Other"];
+const SEC_COLS = ["#0d2a47","#7a4010","#1e5f8a","#1a5a3a"];
+const WO_STATUS = {open:"#1f6296","in progress":"#c9832a",complete:"#135e34"};
+const GOLD_ONLY = ["Mechanical","Systems"];
+const CK = [
+  {s:"Launch",i:["Engine Plugs & Hoses","Connect Batteries","Fluid Levels","Hull Plug","Bilge / Leak Check","Start & Run Engine","Bumpers & Lines","Shorepower Cord","Battery Switch — Off","Key to Office"]},
+  {s:"Mechanical",i:["Load Test Batteries","Clean Terminals","Belts & Hoses","Flame Arrestor","Props & Zincs","Trim / Tilt","Steering / Helm","Fresh Water System"]},
+  {s:"Safety",i:["Blower","Nav Lights","Anchor Lights","Bilge Pumps","Horn","Fire Extinguisher","Life Jackets","Throwable Device","Flare Kit","Dock Lines","CO Detector"]},
+  {s:"Systems",i:["Generator","Air Conditioning","Navigation System","Water Tanks — Drained / Filled","Black Tank — Empty / Full"]}
+];
+
+function uid(){return Date.now()+"_"+Math.random().toString(36).slice(2,5);}
+function today(){return new Date().toLocaleDateString();}
+function mkDmg(){return{condition:"",types:DMG.map(n=>({n,on:false})),notes:"",photos:[]};}
+function normSecs(secs){return CK.map(ck=>{const ex=(secs||[]).find(s=>s.s===ck.s);return ex||{s:ck.s,items:ck.i.map(n=>({n,ok:false,at:false,note:""}))}});}
+function mkCL(cid,tech){
+  return{id:uid(),cid,date:today(),tech,status:"open",notes:"",ts:Date.now(),
+    pkg:"basic",location:"",photos:[],damage:mkDmg(),
+    secs:CK.map(s=>({s:s.s,items:s.i.map(n=>({n,ok:false,at:false,note:""}))}))};
+}
+function mkWO(cid,tech){return{id:uid(),cid,woNum:"",tech,date:today(),status:"open",desc:"",notes:"",parts:[],ts:Date.now()};}
+function ld(k){try{return JSON.parse(localStorage.getItem(k)||"[]");}catch(e){return[];}}
+function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){alert("Storage full");}}
+function prog(cl){
+  let t=0,d=0;
+  normSecs(cl.secs).forEach(s=>{
+    if(GOLD_ONLY.includes(s.s)&&cl.pkg!=="gold")return;
+    s.items.forEach(i=>{t++;if(i.ok||i.at)d++;});
+  });
+  return{t,d,p:t?Math.round(d/t*100):0};
+}
+function resizeImg(file,cb){
+  const r=new FileReader();
+  r.onload=e=>{const img=new Image();img.onload=()=>{const max=800;let w=img.width,h=img.height;if(w>max||h>max){if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;}}const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);cb(c.toDataURL("image/jpeg",0.6));};img.src=e.target.result;};
+  r.readAsDataURL(file);
+}
+
+function AHdr({label,bg,k,badge,isOpen,onToggle}){
+  return(
+    <div onClick={()=>onToggle(k)} style={{padding:"11px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",background:bg,cursor:"pointer"}}>
+      <div style={{display:"flex",alignItems:"center",gap:9}}>
+        <span style={{color:"rgba(255,255,255,.7)",fontSize:13,display:"inline-block",transform:isOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform .2s"}}>▶</span>
+        <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>{label}</div>
+      </div>
+      {badge!=null&&<span style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.5)"}}>{badge}</span>}
+    </div>
+  );
+}
+
+function WOCard({wo,onEdit}){
+  const [open,setOpen]=useState(false);
+  const col=WO_STATUS[wo.status]||WO_STATUS.open;
+  return(
+    <div style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:8,marginBottom:8,overflow:"hidden",boxShadow:"0 1px 4px rgba(10,25,50,.04)"}}>
+      <div onClick={()=>setOpen(!open)} style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <span style={{fontSize:16,fontWeight:900,color:"#c9832a"}}>WO# {wo.woNum||"—"}</span>
+            <span style={{fontSize:9,fontWeight:700,textTransform:"uppercase",padding:"2px 8px",borderRadius:10,color:"#fff",background:col}}>{wo.status}</span>
+          </div>
+          <div style={{fontSize:13,fontWeight:700,color:"#0d2a47",marginTop:3}}>{wo.desc||<span style={{color:"#aaa",fontStyle:"italic",fontWeight:400}}>No description</span>}</div>
+          <div style={{fontSize:10.5,color:"#2a3f4f",marginTop:2}}>{wo.date} · {wo.tech}</div>
+        </div>
+        <span style={{fontSize:13,color:"#2a3f4f",marginLeft:10,display:"inline-block",transform:open?"rotate(90deg)":"rotate(0deg)",transition:"transform .2s",flexShrink:0}}>▶</span>
+      </div>
+      {open&&(
+        <div style={{padding:"10px 14px 14px",borderTop:"1px solid #eef3f7",background:"#fafcfe"}}>
+          {wo.notes&&<div style={{fontSize:13,color:"#0d2a47",lineHeight:1.5,marginBottom:10}}>{wo.notes}</div>}
+          {(wo.parts||[]).length>0&&(
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",marginBottom:6}}>🔩 Parts</div>
+              {(wo.parts||[]).map(p=>(
+                <div key={p.id} style={{padding:"7px 10px",background:"#f0f4f8",border:"1px solid #d0dce8",borderRadius:6,marginBottom:5}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#0d2a47"}}>{p.name}</div>
+                  {p.desc&&<div style={{fontSize:11,color:"#2a3f4f",marginTop:1}}>{p.desc}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={e=>{e.stopPropagation();onEdit(wo);}} style={{background:"#163860",color:"#fff",border:"none",borderRadius:6,padding:"7px 14px",fontSize:11,fontWeight:700,cursor:"pointer"}}>✏ Edit WO</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Login({onLogin,techs}){
+  return(
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#0d2a47,#06141f)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#fff",borderRadius:14,overflow:"hidden",maxWidth:320,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+        <div style={{background:"linear-gradient(160deg,#0d2a47,#143452)",borderBottom:"4px solid #c9832a",padding:"26px 22px",textAlign:"center"}}>
+          <div style={{fontSize:48,marginBottom:6}}>⚓</div>
+          <div style={{fontSize:9,color:"rgba(255,255,255,.5)",letterSpacing:3,textTransform:"uppercase"}}>Marine Service Portal</div>
+        </div>
+        <div style={{padding:"20px 22px 24px"}}>
+          <div style={{textAlign:"center",fontWeight:800,fontSize:11,textTransform:"uppercase",letterSpacing:1,color:"#0d2a47",marginBottom:12}}>Select your name</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+            {techs.map(n=><button key={n} onClick={()=>onLogin(n)} style={{background:"#0d2a47",border:"none",borderRadius:8,padding:"15px 10px",fontSize:15,fontWeight:800,color:"#fff",cursor:"pointer"}}>{n}</button>)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminModal({onClose,custs,cls,wos,techList,saveTechs}){
+  const [pin,setPin]=useState("");
+  const [auth,setAuth]=useState(false);
+  const [newName,setNewName]=useState("");
+  const [err,setErr]=useState("");
+  const fi={width:"100%",background:"#f2f5f8",border:"1px solid #d0dce8",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"};
+  if(!auth)return(
+    <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#fff",borderRadius:14,padding:24,width:"100%",maxWidth:320,textAlign:"center"}}>
+        <div style={{fontSize:38,marginBottom:8}}>🔐</div>
+        <div style={{fontSize:18,fontWeight:900,color:"#0d2a47",marginBottom:4}}>Admin Access</div>
+        <div style={{fontSize:12,color:"#2a3f4f",marginBottom:16}}>Enter your PIN</div>
+        <input type="password" maxLength={6} value={pin} onChange={e=>setPin(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(pin===ADMIN_PIN?setAuth(true):setErr("Wrong PIN"))} style={{...fi,textAlign:"center",fontSize:24,fontWeight:700,letterSpacing:8,marginBottom:8}} placeholder="••••"/>
+        {err&&<div style={{color:"#9e2424",fontSize:12,fontWeight:700,marginBottom:8}}>{err}</div>}
+        <div style={{display:"flex",gap:9}}>
+          <button onClick={()=>{if(pin===ADMIN_PIN)setAuth(true);else setErr("Wrong PIN");}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Unlock</button>
+          <button onClick={onClose} style={{background:"#e8edf2",color:"#2a3f4f",border:"none",borderRadius:6,padding:"10px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+  return(
+    <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div style={{background:"#fff",borderRadius:"14px 14px 0 0",width:"100%",maxHeight:"90vh",overflowY:"auto",padding:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,paddingBottom:10,borderBottom:"1px solid #d0dce8"}}>
+          <div style={{fontSize:17,fontWeight:900,color:"#0d2a47"}}>👑 Admin — Duke</div>
+          <button onClick={onClose} style={{background:"transparent",border:"none",fontSize:22,color:"#999",cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:18}}>
+          {[[custs.length,"Customers","#1f6296"],[wos.length,"Work Orders","#c9832a"],[cls.length,"Checklists","#135e34"]].map(([n,l,c])=>(
+            <div key={l} style={{background:"#f0f4f8",borderRadius:8,padding:"12px 8px",textAlign:"center",border:"1px solid #d0dce8"}}>
+              <div style={{fontSize:28,fontWeight:900,color:c}}>{n}</div>
+              <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#2a3f4f",marginTop:3}}>{l}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{fontSize:11,fontWeight:800,textTransform:"uppercase",letterSpacing:1,color:"#0d2a47",marginBottom:10}}>Manage Technicians</div>
+        {techList.map(t=>(
+          <div key={t} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:"#f8fafb",border:"1px solid #d0dce8",borderRadius:7,marginBottom:7}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              {t===ADMIN_TECH&&<span style={{fontSize:10,background:"#c9832a",color:"#fff",fontWeight:800,padding:"2px 7px",borderRadius:4}}>OWNER</span>}
+              <span style={{fontSize:14,fontWeight:700,color:"#0d2a47"}}>{t}</span>
+            </div>
+            {t!==ADMIN_TECH&&<button onClick={()=>{if(confirm("Remove "+t+"?"))saveTechs(techList.filter(x=>x!==t));}} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:5,padding:"5px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>Remove</button>}
+          </div>
+        ))}
+        <div style={{display:"flex",gap:8,marginTop:10}}>
+          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="New tech name..." style={{...fi,flex:1}}/>
+          <button onClick={()=>{const n=newName.trim();if(!n||techList.includes(n))return;saveTechs([...techList,n]);setNewName("");}} style={{background:"#135e34",color:"#fff",border:"none",borderRadius:6,padding:"9px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Add</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [tech,setTech]=useState(null);
+  const [custs,setCusts]=useState(()=>ld("sw_c"));
+  const [cls,setCls]=useState(()=>ld("sw_cl"));
+  const [wos,setWos]=useState(()=>ld("sw_wo"));
+  const [techList,setTechList]=useState(()=>{const s=ld("sw_techs");return s&&s.length?s:[...DEFAULT_TECHS];});
+  const [screen,setScreen]=useState("list");
+  const [cust,setCust]=useState(null);
+  const [cl,setCl]=useState(null);
+  const [custTab,setCustTab]=useState("cl");
+  const [modal,setModal]=useState(null);
+  const [woModal,setWoModal]=useState(null);
+  const [adminOpen,setAdminOpen]=useState(false);
+  const [search,setSearch]=useState("");
+
+  function saveC(n){setCusts(n);sv("sw_c",n);}
+  function saveCL(n){setCls(n);sv("sw_cl",n);}
+  function saveWOs(n){setWos(n);sv("sw_wo",n);}
+  function saveTechs(n){setTechList(n);sv("sw_techs",n);}
+
+  if(!tech)return <Login onLogin={setTech} techs={techList}/>;
+
+  function Hdr(){
+    return(
+      <div style={{background:"#0d2a47",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"3px solid #c9832a"}}>
+        <div style={{color:"#fff",fontSize:17,fontWeight:900}}>⚓ Service Portal</div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          {tech===ADMIN_TECH&&<button onClick={()=>setAdminOpen(true)} style={{background:"#c9832a",color:"#0d2a47",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}}>👑 Admin</button>}
+          <span style={{background:"rgba(255,255,255,.15)",color:"#fff",fontSize:10,fontWeight:800,padding:"4px 10px",borderRadius:4}}>{tech}</span>
+          <button onClick={()=>{setTech(null);setScreen("list");setCust(null);setCl(null);}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:6,padding:"6px 12px",cursor:"pointer",fontWeight:700,fontSize:11}}>Out</button>
+        </div>
+      </div>
+    );
+  }
+
+  if(screen==="list"){
+    const fl=[...custs].filter(c=>c.name.toLowerCase().includes(search.toLowerCase())).sort((a,b)=>a.name.localeCompare(b.name));
+    return(
+      <div style={{minHeight:"100vh",background:"#f0f4f8",fontFamily:"-apple-system,sans-serif"}}>
+        <Hdr/>
+        <div style={{padding:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#2a3f4f"}}>{custs.length} Customers</div>
+            <button onClick={()=>setModal("add")} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",fontSize:11,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>+ Add Customer</button>
+          </div>
+          {custs.length>0&&<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." style={{width:"100%",background:"#f2f5f8",border:"1px solid #d0dce8",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:10,boxSizing:"border-box",outline:"none"}}/>}
+          {fl.length===0&&<div style={{textAlign:"center",padding:"40px 16px",color:"#2a3f4f"}}>
+            <div style={{fontSize:40,opacity:.15,marginBottom:10}}>⚓</div>
+            <div style={{fontSize:15,fontWeight:800,color:"#0d2a47",marginBottom:12}}>No customers yet</div>
+            <button onClick={()=>setModal("add")} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 18px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Add First Customer</button>
+          </div>}
+          {fl.map(c=>{
+            const nc=cls.filter(x=>x.cid===c.id).length;
+            const nw=wos.filter(x=>x.cid===c.id).length;
+            return(
+              <div key={c.id} onClick={()=>{setCust(c);setCl(null);setCustTab("cl");setScreen("cust");}} style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:8,padding:"12px 14px",marginBottom:8,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 1px 4px rgba(10,25,50,.04)"}}>
+                <div>
+                  <div style={{fontSize:15,fontWeight:800,color:"#0d2a47"}}>{c.name}</div>
+                  <div style={{fontSize:11,color:"#2a3f4f",marginTop:2}}>{[c.vm,c.vmo,c.vy].filter(Boolean).join(" ")||"No vessel"}{c.vs?" · Slip "+c.vs:""}</div>
+                  <div style={{display:"flex",gap:8,marginTop:3}}>
+                    {nc>0&&<span style={{fontSize:10,fontWeight:700,color:"#1f6296"}}>{nc} checklist{nc>1?"s":""}</span>}
+                    {nw>0&&<span style={{fontSize:10,fontWeight:700,color:"#c9832a"}}>{nw} WO{nw>1?"s":""}</span>}
+                  </div>
+                </div>
+                <div style={{fontSize:22,color:"#c9832a"}}>›</div>
+              </div>
+            );
+          })}
+        </div>
+        {modal&&<CustModal cust={modal==="edit"?cust:null} onClose={()=>setModal(null)} onSave={f=>{
+          if(modal==="add"){const nc={id:uid(),ts:Date.now(),...f};saveC([nc,...custs]);setCust(nc);setCustTab("cl");setScreen("cust");}
+          else{saveC(custs.map(c=>c.id===cust.id?{...c,...f}:c));setCust({...cust,...f});}
+          setModal(null);
+        }} onDelete={()=>{if(!confirm("Delete customer?"))return;saveC(custs.filter(c=>c.id!==cust.id));saveCL(cls.filter(c=>c.cid!==cust.id));saveWOs(wos.filter(x=>x.cid!==cust.id));setModal(null);setCust(null);setScreen("list");}}/>}
+        {adminOpen&&<AdminModal onClose={()=>setAdminOpen(false)} custs={custs} cls={cls} wos={wos} techList={techList} saveTechs={saveTechs}/>}
+      </div>
+    );
+  }
+
+  const myCls=[...cls.filter(x=>x.cid===cust.id)].sort((a,b)=>b.ts-a.ts);
+  const myWos=[...wos.filter(x=>x.cid===cust.id)].sort((a,b)=>b.ts-a.ts);
+
+  return(
+    <div style={{minHeight:"100vh",background:"#f0f4f8",fontFamily:"-apple-system,sans-serif"}}>
+      <Hdr/>
+      <button onClick={()=>{setScreen("list");setCl(null);}} style={{width:"100%",background:"#163860",color:"#fff",border:"none",padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>‹ Customers</button>
+      <div style={{background:"#0d2a47",padding:"13px 15px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div>
+            <div style={{fontSize:20,fontWeight:900,color:"#fff"}}>{cust.name}</div>
+            <div style={{fontSize:10.5,color:"rgba(255,255,255,.4)",marginTop:3}}>{[cust.ph,cust.em].filter(Boolean).join(" · ")||"No contact info"}</div>
+          </div>
+          <div style={{display:"flex",gap:7}}>
+            <button onClick={()=>setModal("edit")} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>✏ Edit</button>
+            {custTab==="cl"&&<button onClick={()=>{const x=mkCL(cust.id,tech);saveCL([x,...cls]);setCl(x);setScreen("cl");}} style={{background:"#c9832a",color:"#0d2a47",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ New</button>}
+            {custTab==="wo"&&<button onClick={()=>setWoModal("add")} style={{background:"#c9832a",color:"#0d2a47",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Add WO</button>}
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",borderTop:"1px solid rgba(255,255,255,.1)",marginTop:10}}>
+          {[["Make",cust.vm],["Model",cust.vmo],["Year",cust.vy],["Slip",cust.vs]].map(([l,v])=>(
+            <div key={l} style={{padding:"7px 8px",borderRight:"1px solid rgba(255,255,255,.1)",textAlign:"center"}}>
+              <div style={{fontSize:7,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"rgba(255,255,255,.35)",marginBottom:2}}>{l}</div>
+              <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,.9)"}}>{v||"—"}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{display:"flex",background:"#163860",borderBottom:"2px solid #c9832a"}}>
+        {[["cl","📋 Checklists"],["wo","🔧 Work Orders"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setCustTab(v)} style={{flex:1,background:"transparent",border:"none",borderBottom:custTab===v?"3px solid #c9832a":"3px solid transparent",marginBottom:-2,color:custTab===v?"#c9832a":"rgba(255,255,255,.45)",padding:"11px 8px",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,cursor:"pointer",fontFamily:"-apple-system,sans-serif"}}>{l}</button>
+        ))}
+      </div>
+      {custTab==="cl"&&(
+        <>
+          <div style={{background:"#1a3a5c",padding:"8px 12px",overflowX:"auto",whiteSpace:"nowrap",borderBottom:"1px solid #2a4a6c"}}>
+            {myCls.length===0
+              ?<span style={{fontSize:11,color:"rgba(255,255,255,.35)"}}>No checklists — tap + New</span>
+              :myCls.map(x=>{
+                const on=cl&&cl.id===x.id&&screen==="cl";
+                const col=x.status==="complete"?"#135e34":x.status==="attention"?"#9e2424":"#1f6296";
+                return(
+                  <span key={x.id} onClick={()=>{setCl(x);setScreen("cl");}} style={{display:"inline-flex",alignItems:"center",gap:5,background:on?"#c9832a":"rgba(255,255,255,.1)",border:"1px solid "+(on?"#c9832a":"rgba(255,255,255,.18)"),borderRadius:16,padding:"5px 11px",cursor:"pointer",fontSize:10,fontWeight:700,color:on?"#0d2a47":"rgba(255,255,255,.7)",marginRight:6}}>
+                    <span style={{width:6,height:6,borderRadius:"50%",background:on?"#0d2a47":col,display:"inline-block"}}/>
+                    {new Date(x.ts).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
+                  </span>
+                );
+              })}
+          </div>
+          {screen!=="cl"?(
+            <div style={{padding:14}}>
+              {myCls.length===0
+                ?<div style={{textAlign:"center",padding:"32px 16px",color:"#2a3f4f"}}>
+                  <div style={{fontSize:34,opacity:.15,marginBottom:8}}>📋</div>
+                  <div style={{fontSize:14,fontWeight:800,color:"#0d2a47",marginBottom:10}}>No checklists yet</div>
+                  <button onClick={()=>{const x=mkCL(cust.id,tech);saveCL([x,...cls]);setCl(x);setScreen("cl");}} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 18px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ New Checklist</button>
+                </div>
+                :myCls.map(x=>{
+                  const p=prog(x);
+                  const col=x.status==="complete"?"#135e34":x.status==="attention"?"#9e2424":"#1f6296";
+                  return(
+                    <div key={x.id} onClick={()=>{setCl(x);setScreen("cl");}} style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:8,padding:"11px 13px",marginBottom:8,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div>
+                        <div style={{fontSize:14,fontWeight:800,color:"#0d2a47"}}>{new Date(x.ts).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                        <div style={{fontSize:10.5,color:"#2a3f4f",marginTop:2}}>{x.tech} · {p.d}/{p.t} items · <span style={{fontWeight:800,color:x.pkg==="gold"?"#c9832a":"#1f6296",textTransform:"uppercase"}}>{x.pkg}</span></div>
+                        <div style={{width:70,height:4,background:"#e8edf2",borderRadius:2,marginTop:5}}>
+                          <div style={{height:"100%",width:p.p+"%",borderRadius:2,background:col}}/>
+                        </div>
+                      </div>
+                      <span style={{fontSize:9,fontWeight:700,textTransform:"uppercase",padding:"3px 9px",borderRadius:12,color:"#fff",background:col}}>{x.status}</span>
+                    </div>
+                  );
+                })}
+            </div>
+          ):(
+            <CLView key={cl.id} cl={cl} onUpdate={patch=>{const u={...cl,...patch};setCl(u);saveCL(cls.map(x=>x.id===u.id?u:x));}} onDelete={()=>{if(!confirm("Delete?"))return;saveCL(cls.filter(x=>x.id!==cl.id));setCl(null);setScreen("cust");}}/>
+          )}
+        </>
+      )}
+      {custTab==="wo"&&(
+        <div style={{padding:14}}>
+          {myWos.length===0
+            ?<div style={{textAlign:"center",padding:"32px 16px",color:"#2a3f4f"}}>
+              <div style={{fontSize:34,opacity:.15,marginBottom:8}}>🔧</div>
+              <div style={{fontSize:14,fontWeight:800,color:"#0d2a47",marginBottom:10}}>No work orders yet</div>
+              <button onClick={()=>setWoModal("add")} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 18px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Add Work Order</button>
+            </div>
+            :myWos.map(wo=><WOCard key={wo.id} wo={wo} onEdit={setWoModal}/>)}
+        </div>
+      )}
+      {modal&&<CustModal cust={modal==="edit"?cust:null} onClose={()=>setModal(null)} onSave={f=>{
+        if(modal==="edit"){saveC(custs.map(c=>c.id===cust.id?{...c,...f}:c));setCust({...cust,...f});}
+        setModal(null);
+      }} onDelete={()=>{if(!confirm("Delete?"))return;saveC(custs.filter(c=>c.id!==cust.id));saveCL(cls.filter(x=>x.cid!==cust.id));saveWOs(wos.filter(x=>x.cid!==cust.id));setModal(null);setCust(null);setScreen("list");}}/>}
+      {woModal&&<WOModal wo={woModal==="add"?null:woModal} onClose={()=>setWoModal(null)}
+        onSave={f=>{if(woModal==="add"){saveWOs([{...mkWO(cust.id,tech),...f},...wos]);}else{saveWOs(wos.map(x=>x.id===woModal.id?{...x,...f}:x));}setWoModal(null);}}
+        onDelete={()=>{if(!confirm("Delete WO?"))return;saveWOs(wos.filter(x=>x.id!==woModal.id));setWoModal(null);}}/>}
+      {adminOpen&&<AdminModal onClose={()=>setAdminOpen(false)} custs={custs} cls={cls} wos={wos} techList={techList} saveTechs={saveTechs}/>}
+    </div>
+  );
+}
+
+function CLView({cl,onUpdate,onDelete}){
+  const secs=normSecs(cl.secs);
+  const [open,setOpen]=useState({Location:false,Launch:false,Mechanical:false,Safety:false,Systems:false,Photos:false,Damage:false});
+  const [noteDraft,setNoteDraft]=useState(cl.notes||"");
+  const photoRef=useRef();
+  const dmgRef=useRef();
+  const dmg=cl.damage||{condition:"",types:DMG.map(n=>({n,on:false})),notes:"",photos:[]};
+  const p=prog(cl);
+  const pcol=cl.status==="attention"?"#9e2424":cl.status==="complete"?"#135e34":"#1f6296";
+
+  function tog(k){setOpen(prev=>({...prev,[k]:!prev[k]}));}
+  function togItem(si,ii,type){
+    const next=secs.map((s,s2)=>s2!==si?s:{...s,items:s.items.map((it,i2)=>i2!==ii?it:type==="ok"?{...it,ok:!it.ok,at:false}:{...it,at:!it.at,ok:false})});
+    onUpdate({secs:next});
+  }
+  function setNote(si,ii,v){
+    const next=secs.map((s,s2)=>s2!==si?s:{...s,items:s.items.map((it,i2)=>i2!==ii?it:{...it,note:v})});
+    onUpdate({secs:next});
+  }
+  function addPhoto(file,isDmg){
+    if(!file)return;
+    resizeImg(file,data=>{
+      if(isDmg){onUpdate({damage:{...dmg,photos:[...(dmg.photos||[]),data]}});}
+      else{onUpdate({photos:[...(cl.photos||[]),data]});}
+    });
+  }
+  function delPhoto(i,isDmg){
+    if(isDmg){const ph=[...(dmg.photos||[])];ph.splice(i,1);onUpdate({damage:{...dmg,photos:ph}});}
+    else{const ph=[...(cl.photos||[])];ph.splice(i,1);onUpdate({photos:ph});}
+  }
+
+  function PGrid({photos,isDmg,rr,bc}){
+    return(
+      <div style={{padding:"12px 13px"}}>
+        <input type="file" accept="image/*" ref={rr} style={{display:"none"}} onChange={e=>{addPhoto(e.target.files[0],isDmg);e.target.value="";}}/>
+        <button onClick={()=>rr.current&&rr.current.click()} style={{background:bc,color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",fontSize:11,fontWeight:700,cursor:"pointer",marginBottom:photos.length>0?10:0}}>📷 Add Photo</button>
+        {photos.length>0&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:8}}>
+          {photos.map((src,i)=>(
+            <div key={i} style={{position:"relative",borderRadius:7,overflow:"hidden",border:"1px solid #d0dce8",aspectRatio:"1"}}>
+              <img src={src} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+              <button onClick={()=>delPhoto(i,isDmg)} style={{position:"absolute",top:3,right:3,background:"rgba(158,36,36,.9)",color:"#fff",border:"none",borderRadius:"50%",width:22,height:22,fontSize:13,fontWeight:700,cursor:"pointer",lineHeight:1}}>✕</button>
+            </div>
+          ))}
+        </div>}
+      </div>
+    );
+  }
+
+  const iStyle={width:"100%",background:"#f2f5f8",border:"1px solid #d0dce8",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"};
+
+  return(
+    <div style={{padding:14}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",color:"#2a3f4f"}}>{cl.date} · {cl.tech}</div>
+        <button onClick={onDelete} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:6,padding:"6px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🗑 Delete</button>
+      </div>
+      <div style={{display:"flex",border:"1px solid #d0dce8",borderRadius:8,overflow:"hidden",marginBottom:12}}>
+        {[["basic","Basic","#1f6296"],["gold","⭐ Gold","#c9832a"]].map(([v,l,c])=>(
+          <button key={v} onClick={()=>onUpdate({pkg:v})} style={{flex:1,background:cl.pkg===v?c:"#f2f5f8",color:cl.pkg===v?"#fff":"#2a3f4f",border:"none",padding:"10px",fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:1,cursor:"pointer"}}>{l}</button>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+        {[["open","Open","#1f6296"],["complete","Complete","#135e34"],["attention","⚠ Attention","#9e2424"]].map(([v,l,c])=>(
+          <button key={v} onClick={()=>onUpdate({status:v})} style={{background:cl.status===v?c:"#e8edf2",color:cl.status===v?"#fff":"#2a3f4f",border:"none",borderRadius:5,padding:"6px 12px",fontSize:10,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>{l}</button>
+        ))}
+      </div>
+      <div style={{height:4,background:"#e8edf2",borderRadius:2,marginBottom:14}}>
+        <div style={{height:"100%",width:p.p+"%",borderRadius:2,background:pcol,transition:"width .3s"}}/>
+      </div>
+      <div style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:8,overflow:"hidden",marginBottom:10}}>
+        <AHdr label={"📍 Boat Location"+(cl.location?" — "+cl.location:"")} bg="#2a3f4f" k="Location" isOpen={open.Location} onToggle={tog}/>
+        {open.Location&&<div style={{padding:"10px 13px",display:"flex",gap:8,flexWrap:"wrap"}}>
+          {LOCS.map(loc=><button key={loc} onClick={()=>onUpdate({location:cl.location===loc?"":loc})} style={{background:cl.location===loc?"#1f6296":"#f2f5f8",color:cl.location===loc?"#fff":"#2a3f4f",border:"1px solid "+(cl.location===loc?"#1f6296":"#d0dce8"),borderRadius:6,padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>{loc}</button>)}
+        </div>}
+      </div>
+      {secs.map((sec,si)=>{
+        if(GOLD_ONLY.includes(sec.s)&&cl.pkg!=="gold")return null;
+        const sd=sec.items.filter(i=>i.ok).length;
+        return(
+          <div key={si} style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:8,overflow:"hidden",marginBottom:10}}>
+            <AHdr label={sec.s} bg={SEC_COLS[si]} k={sec.s} badge={sd+"/"+sec.items.length} isOpen={open[sec.s]} onToggle={tog}/>
+            {open[sec.s]&&<div>
+              <div style={{display:"grid",gridTemplateColumns:"28px 28px 1fr 1.1fr",gap:0,padding:"4px 10px 2px",background:"#f8fafb",borderBottom:"1px solid #eef3f7"}}>
+                {["OK","!","Item","Note"].map(h=><span key={h} style={{fontSize:7,fontWeight:700,textTransform:"uppercase",color:"#2a3f4f",textAlign:h==="Item"?"left":"center"}}>{h}</span>)}
+              </div>
+              {sec.items.map((it,ii)=>(
+                <div key={ii} style={{display:"grid",gridTemplateColumns:"28px 28px 1fr 1.1fr",gap:4,alignItems:"center",padding:"7px 10px",borderBottom:ii<sec.items.length-1?"1px solid #eef3f7":"none",background:ii%2===0?"#fff":"#fafcfe"}}>
+                  <div onClick={()=>togItem(si,ii,"ok")} style={{width:26,height:26,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",border:"1.5px solid "+(it.ok?"#135e34":"#d0dce8"),background:it.ok?"#135e34":"#fff",cursor:"pointer"}}>
+                    {it.ok&&<svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5"><polyline points="2,6 5,9 10,3"/></svg>}
+                  </div>
+                  <div onClick={()=>togItem(si,ii,"at")} style={{width:26,height:26,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",border:"1.5px solid "+(it.at?"#9e2424":"#d0dce8"),background:it.at?"#9e2424":"#fff",cursor:"pointer"}}>
+                    {it.at&&<svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5"><line x1="3" y1="3" x2="9" y2="9"/><line x1="9" y1="3" x2="3" y2="9"/></svg>}
+                  </div>
+                  <span style={{fontSize:12}}>{it.n}</span>
+                  <input style={{border:"none",borderBottom:"1px solid #d0dce8",background:"transparent",fontSize:11,width:"100%",outline:"none",padding:2}} value={it.note} onChange={e=>setNote(si,ii,e.target.value)} placeholder="note"/>
+                </div>
+              ))}
+            </div>}
+          </div>
+        );
+      })}
+      <div style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:8,overflow:"hidden",marginBottom:10}}>
+        <AHdr label={"📷 Photos"+(cl.photos&&cl.photos.length?" ("+cl.photos.length+")":"")} bg="#163860" k="Photos" isOpen={open.Photos} onToggle={tog}/>
+        {open.Photos&&<PGrid photos={cl.photos||[]} isDmg={false} rr={photoRef} bc="#163860"/>}
+      </div>
+      <div style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:8,overflow:"hidden",marginBottom:10}}>
+        <AHdr label="⚠ Damage Report" bg="#7a1a1a" k="Damage" isOpen={open.Damage} onToggle={tog}/>
+        {open.Damage&&<div style={{padding:13}}>
+          <div style={{fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",marginBottom:7}}>Condition</div>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:14}}>
+            {[["none","No Damage","#135e34"],["pre","Pre-Existing","#888"],["new","New Damage","#9e2424"]].map(([v,l,c])=>(
+              <button key={v} onClick={()=>onUpdate({damage:{...dmg,condition:dmg.condition===v?"":v}})} style={{background:dmg.condition===v?c:"#f2f5f8",color:dmg.condition===v?"#fff":"#2a3f4f",border:"1px solid "+(dmg.condition===v?c:"#d0dce8"),borderRadius:6,padding:"7px 13px",fontSize:11,fontWeight:700,cursor:"pointer"}}>{l}</button>
+            ))}
+          </div>
+          <div style={{fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",marginBottom:7}}>Damage Type</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginBottom:14}}>
+            {dmg.types.map((d,i)=>(
+              <div key={i} onClick={()=>{const t=[...dmg.types];t[i]={...t[i],on:!t[i].on};onUpdate({damage:{...dmg,types:t}});}} style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",padding:"5px 0"}}>
+                <div style={{width:22,height:22,borderRadius:4,border:"1.5px solid "+(d.on?"#9e2424":"#d0dce8"),background:d.on?"#9e2424":"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  {d.on&&<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5"><line x1="3" y1="3" x2="9" y2="9"/><line x1="9" y1="3" x2="3" y2="9"/></svg>}
+                </div>
+                <span style={{fontSize:12}}>{d.n}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",marginBottom:5}}>Notes</div>
+          <textarea rows={3} style={{...iStyle,resize:"none",marginBottom:12}} value={dmg.notes||""} onChange={e=>onUpdate({damage:{...dmg,notes:e.target.value}})} placeholder="Describe damage..."/>
+          <div style={{fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",marginBottom:7}}>Damage Photos</div>
+          <PGrid photos={dmg.photos||[]} isDmg={true} rr={dmgRef} bc="#9e2424"/>
+        </div>}
+      </div>
+      <div style={{marginBottom:14}}>
+        <label style={{fontSize:8,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",display:"block",marginBottom:4}}>Notes</label>
+        <textarea rows={4} style={{...iStyle,resize:"none",marginBottom:8}} value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Add notes..."/>
+        <button onClick={()=>onUpdate({notes:noteDraft})} style={{background:"#135e34",color:"#fff",border:"none",borderRadius:6,padding:"10px",fontSize:12,fontWeight:700,cursor:"pointer",width:"100%"}}>💾 Save Notes</button>
+      </div>
+    </div>
+  );
+}
+
+function WOModal({wo,onSave,onDelete,onClose}){
+  const [f,setF]=useState({woNum:wo?.woNum||"",desc:wo?.desc||"",status:wo?.status||"open",notes:wo?.notes||""});
+  const [parts,setParts]=useState(wo?.parts||[]);
+  const [partName,setPartName]=useState("");
+  const [partDesc,setPartDesc]=useState("");
+  const u=(k,v)=>setF({...f,[k]:v});
+  function addPart(){if(!partName.trim())return;setParts([...parts,{id:uid(),name:partName.trim(),desc:partDesc.trim(),ts:Date.now()}]);setPartName("");setPartDesc("");}
+  function delPart(id){setParts(parts.filter(p=>p.id!==id));}
+  const fi={width:"100%",background:"#f2f5f8",border:"1px solid #d0dce8",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"};
+  const lb={fontSize:8,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",display:"block",marginBottom:4};
+  return(
+    <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div style={{background:"#fff",borderRadius:"14px 14px 0 0",width:"100%",maxHeight:"90vh",overflowY:"auto",padding:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,paddingBottom:10,borderBottom:"1px solid #d0dce8"}}>
+          <div style={{fontSize:16,fontWeight:800,color:"#0d2a47"}}>{wo?"Edit Work Order":"Add Work Order"}</div>
+          <button onClick={onClose} style={{background:"transparent",border:"none",fontSize:22,color:"#999",cursor:"pointer"}}>✕</button>
+        </div>
+        <label style={lb}>WO Number *</label>
+        <input style={{...fi,marginBottom:12,fontSize:18,fontWeight:800,color:"#c9832a"}} value={f.woNum} onChange={e=>u("woNum",e.target.value)} placeholder="e.g. 1042"/>
+        <label style={lb}>Description</label>
+        <input style={{...fi,marginBottom:12}} value={f.desc} onChange={e=>u("desc",e.target.value)} placeholder="e.g. Engine tune-up, Haul out..."/>
+        <label style={lb}>Status</label>
+        <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:12}}>
+          {Object.entries(WO_STATUS).map(([v,c])=>(
+            <button key={v} onClick={()=>u("status",v)} style={{background:f.status===v?c:"#f2f5f8",color:f.status===v?"#fff":"#2a3f4f",border:"1px solid "+(f.status===v?c:"#d0dce8"),borderRadius:6,padding:"7px 13px",fontSize:11,fontWeight:700,textTransform:"capitalize",cursor:"pointer"}}>{v}</button>
+          ))}
+        </div>
+        <label style={lb}>Notes</label>
+        <textarea rows={3} style={{...fi,resize:"none",marginBottom:14}} value={f.notes} onChange={e=>u("notes",e.target.value)} placeholder="Describe the work..."/>
+        <div style={{background:"#f8fafb",border:"1px solid #d0dce8",borderRadius:8,overflow:"hidden",marginBottom:14}}>
+          <div style={{padding:"9px 12px",background:"#1a3a5c",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>🔩 Parts List</div>
+            {parts.length>0&&<span style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.5)"}}>{parts.length} part{parts.length>1?"s":""}</span>}
+          </div>
+          {parts.length>0&&<div style={{padding:"8px 12px"}}>
+            {parts.map(p=>(
+              <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"8px 10px",background:"#fff",border:"1px solid #d0dce8",borderRadius:6,marginBottom:5}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#0d2a47"}}>{p.name}</div>
+                  {p.desc&&<div style={{fontSize:11,color:"#2a3f4f",marginTop:1}}>{p.desc}</div>}
+                </div>
+                <button onClick={()=>delPart(p.id)} style={{background:"transparent",border:"none",color:"#9e2424",cursor:"pointer",fontSize:18,flexShrink:0,padding:"0 0 0 8px",lineHeight:1}}>✕</button>
+              </div>
+            ))}
+          </div>}
+          <div style={{padding:"10px 12px",borderTop:parts.length>0?"1px solid #eef3f7":"none",display:"flex",flexDirection:"column",gap:7}}>
+            <input value={partName} onChange={e=>setPartName(e.target.value)} placeholder="Part name *" style={fi}/>
+            <input value={partDesc} onChange={e=>setPartDesc(e.target.value)} placeholder="Description (optional)" style={fi}/>
+            <button onClick={addPart} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"9px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Add Part</button>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:9}}>
+          <button onClick={()=>{if(!f.woNum){alert("WO number required.");return;}onSave({...f,parts});}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 16px",fontSize:12,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>{wo?"Save":"Add WO"}</button>
+          {wo&&<button onClick={onDelete} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:6,padding:"10px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🗑</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustModal({cust,onSave,onDelete,onClose}){
+  const [f,setF]=useState({name:cust?.name||"",ph:cust?.ph||"",em:cust?.em||"",vm:cust?.vm||"",vmo:cust?.vmo||"",vy:cust?.vy||"",ve:cust?.ve||"",vc:cust?.vc||"",vs:cust?.vs||""});
+  const u=(k,v)=>setF({...f,[k]:v});
+  const fi={width:"100%",background:"#f2f5f8",border:"1px solid #d0dce8",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"};
+  const lb={fontSize:8,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",display:"block",marginBottom:3};
+  return(
+    <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div style={{background:"#fff",borderRadius:"14px 14px 0 0",width:"100%",maxHeight:"90vh",overflowY:"auto",padding:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,paddingBottom:10,borderBottom:"1px solid #d0dce8"}}>
+          <div style={{fontSize:16,fontWeight:800,color:"#0d2a47"}}>{cust?"Edit":"Add"} Customer</div>
+          <button onClick={onClose} style={{background:"transparent",border:"none",fontSize:22,color:"#999",cursor:"pointer"}}>✕</button>
+        </div>
+        <label style={lb}>Name *</label>
+        <input style={{...fi,marginBottom:9}} value={f.name} onChange={e=>u("name",e.target.value)} placeholder="Required"/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:9}}>
+          {[["ph","Phone"],["em","Email"]].map(([k,l])=>(
+            <div key={k}><label style={lb}>{l}</label><input style={fi} value={f[k]} onChange={e=>u(k,e.target.value)}/></div>
+          ))}
+        </div>
+        <div style={{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#2a3f4f",margin:"10px 0 8px"}}>Vessel</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:16}}>
+          {[["vm","Make"],["vmo","Model"],["vy","Year"],["ve","Engine"],["vc","Color"],["vs","Slip #"]].map(([k,l])=>(
+            <div key={k}><label style={lb}>{l}</label><input style={fi} value={f[k]} onChange={e=>u(k,e.target.value)}/></div>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:9}}>
+          <button onClick={()=>{if(!f.name){alert("Name required.");return;}onSave(f);}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 16px",fontSize:12,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>{cust?"Save":"Add Customer"}</button>
+          {cust&&<button onClick={onDelete} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:6,padding:"10px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🗑</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
