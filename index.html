@@ -173,7 +173,17 @@ function App(){
   const [adminOpen,setAdminOpen]=useState(false);
   const [search,setSearch]=useState("");
 
-  useEffect(()=>{loadAll();},[]);
+  useEffect(()=>{
+    loadAll();
+    // Real-time subscriptions — reload affected table on any change
+    const sub = sb.channel('portal-realtime')
+      .on('postgres_changes',{event:'*',schema:'public',table:'customers'},   ()=>sb.from('customers').select('*').then(r=>{ if(!r.error) setCusts(r.data||[]); }))
+      .on('postgres_changes',{event:'*',schema:'public',table:'checklists'},  ()=>sb.from('checklists').select('*').then(r=>{ if(!r.error) setCls(r.data||[]); }))
+      .on('postgres_changes',{event:'*',schema:'public',table:'workorders'},   ()=>sb.from('workorders').select('*').then(r=>{ if(!r.error) setWos(r.data||[]); }))
+      .on('postgres_changes',{event:'*',schema:'public',table:'techs'},        ()=>sb.from('techs').select('*').then(r=>{ if(!r.error && r.data?.length) setTechList(r.data.map(x=>x.name)); }))
+      .subscribe();
+    return ()=>{ sb.removeChannel(sub); };
+  },[]);
 
   async function loadAll(){
     setLoadErr("");
@@ -568,17 +578,4 @@ function CustModal({cust,onSave,onDelete,onClose}){
       </div>
       <div style={{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#2a3f4f",margin:"10px 0 8px"}}>Vessel</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:16}}>
-        {[["vm","Make"],["vmo","Model"],["vy","Year"],["ve","Engine"],["vc","Color"],["vs","Slip #"]].map(([k,l])=>(<div key={k}><label style={lb}>{l}</label><input style={fi} value={f[k]} onChange={e=>u(k,e.target.value)}/></div>))}
-      </div>
-      <div style={{display:"flex",gap:9}}>
-        <button onClick={()=>{if(!f.name){alert("Name required.");return;}onSave(f);}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 16px",fontSize:12,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>{cust?"Save":"Add Customer"}</button>
-        {cust&&<button onClick={onDelete} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:6,padding:"10px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Delete</button>}
-      </div>
-    </div>
-  </div>);
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
-</script>
-</body>
-</html>
+        {[["vm","Make"],["vmo","Model"],["
