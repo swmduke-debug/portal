@@ -175,14 +175,27 @@ function App(){
 
   useEffect(()=>{
     loadAll();
-    // Real-time subscriptions — reload affected table on any change
+    // Real-time: try Supabase subscriptions first, poll every 12s as reliable fallback
     const sub = sb.channel('portal-realtime')
       .on('postgres_changes',{event:'*',schema:'public',table:'customers'},   ()=>sb.from('customers').select('*').then(r=>{ if(!r.error) setCusts(r.data||[]); }))
       .on('postgres_changes',{event:'*',schema:'public',table:'checklists'},  ()=>sb.from('checklists').select('*').then(r=>{ if(!r.error) setCls(r.data||[]); }))
-      .on('postgres_changes',{event:'*',schema:'public',table:'workorders'},   ()=>sb.from('workorders').select('*').then(r=>{ if(!r.error) setWos(r.data||[]); }))
-      .on('postgres_changes',{event:'*',schema:'public',table:'techs'},        ()=>sb.from('techs').select('*').then(r=>{ if(!r.error && r.data?.length) setTechList(r.data.map(x=>x.name)); }))
+      .on('postgres_changes',{event:'*',schema:'public',table:'workorders'},  ()=>sb.from('workorders').select('*').then(r=>{ if(!r.error) setWos(r.data||[]); }))
+      .on('postgres_changes',{event:'*',schema:'public',table:'techs'},       ()=>sb.from('techs').select('*').then(r=>{ if(!r.error && r.data?.length) setTechList(r.data.map(x=>x.name)); }))
       .subscribe();
-    return ()=>{ sb.removeChannel(sub); };
+    const poll = setInterval(()=>{
+      Promise.all([
+        sb.from('customers').select('*'),
+        sb.from('checklists').select('*'),
+        sb.from('workorders').select('*'),
+        sb.from('techs').select('*'),
+      ]).then(([c,ch,wo,t])=>{
+        if(!c.error) setCusts(c.data||[]);
+        if(!ch.error) setCls(ch.data||[]);
+        if(!wo.error) setWos(wo.data||[]);
+        if(!t.error && t.data?.length) setTechList(t.data.map(x=>x.name));
+      });
+    }, 12000);
+    return ()=>{ sb.removeChannel(sub); clearInterval(poll); };
   },[]);
 
   async function loadAll(){
@@ -573,9 +586,4 @@ function CustModal({cust,onSave,onDelete,onClose}){
       </div>
       <label style={lb}>Name *</label>
       <input style={{...fi,marginBottom:9}} value={f.name} onChange={e=>u("name",e.target.value)} placeholder="Required"/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:9}}>
-        {[["ph","Phone"],["em","Email"]].map(([k,l])=>(<div key={k}><label style={lb}>{l}</label><input style={fi} value={f[k]} onChange={e=>u(k,e.target.value)}/></div>))}
-      </div>
-      <div style={{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#2a3f4f",margin:"10px 0 8px"}}>Vessel</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:16}}>
-        {[["vm","Make"],["vmo","Model"],["
+      <div style={{display:"gr
