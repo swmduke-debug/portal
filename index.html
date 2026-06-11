@@ -92,7 +92,14 @@ function WOCard({wo,onEdit}){
   </div>);
 }
 
-function Login({onLogin,techs}){
+function Login({onLogin,techs,pins}){
+  const [sel,setSel]=useState(null);
+  const [pin,setPin]=useState("");
+  const [err,setErr]=useState("");
+  function go(){
+    if(pin===pins[sel])onLogin(sel);
+    else{setErr("Wrong PIN");setPin("");}
+  }
   return(<div style={{minHeight:"100vh",background:"linear-gradient(180deg,#0d2a47,#06141f)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{background:"#fff",borderRadius:14,overflow:"hidden",maxWidth:320,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
       <div style={{background:"linear-gradient(160deg,#0d2a47,#143452)",borderBottom:"4px solid #c9832a",padding:"26px 22px",textAlign:"center"}}>
@@ -100,30 +107,47 @@ function Login({onLogin,techs}){
         <div style={{fontSize:9,color:"rgba(255,255,255,.5)",letterSpacing:3,textTransform:"uppercase"}}>Marine Service Portal</div>
       </div>
       <div style={{padding:"20px 22px 24px"}}>
+        {!sel?(<React.Fragment>
         <div style={{textAlign:"center",fontWeight:800,fontSize:11,textTransform:"uppercase",letterSpacing:1,color:"#0d2a47",marginBottom:12}}>Select your name</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
-          {techs.map(n=><button key={n} onClick={()=>onLogin(n)} style={{background:"#0d2a47",border:"none",borderRadius:8,padding:"15px 10px",fontSize:15,fontWeight:800,color:"#fff",cursor:"pointer"}}>{n}</button>)}
+          {techs.map(n=><button key={n} onClick={()=>{if(pins[n]){setSel(n);setPin("");setErr("");}else onLogin(n);}} style={{background:"#0d2a47",border:"none",borderRadius:8,padding:"15px 10px",fontSize:15,fontWeight:800,color:"#fff",cursor:"pointer"}}>{n}</button>)}
         </div>
+        </React.Fragment>):(<React.Fragment>
+        <div style={{textAlign:"center",fontWeight:800,fontSize:11,textTransform:"uppercase",letterSpacing:1,color:"#0d2a47",marginBottom:12}}>{sel} - Enter PIN</div>
+        <input type="password" inputMode="numeric" maxLength={4} autoFocus value={pin} onChange={e=>{setPin(e.target.value.replace(/\D/g,""));setErr("");}} onKeyDown={e=>e.key==="Enter"&&go()} style={{width:"100%",textAlign:"center",fontSize:26,fontWeight:700,letterSpacing:10,padding:"10px",border:"1px solid #d0dce8",borderRadius:8,background:"#f2f5f8",outline:"none",boxSizing:"border-box",marginBottom:10}} placeholder="...."/>
+        {err&&<div style={{color:"#9e2424",fontSize:12,fontWeight:700,textAlign:"center",marginBottom:8}}>{err}</div>}
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={go} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:8,padding:"12px",fontSize:13,fontWeight:800,cursor:"pointer"}}>Sign In</button>
+          <button onClick={()=>{setSel(null);setPin("");setErr("");}} style={{background:"#e8edf2",color:"#2a3f4f",border:"none",borderRadius:8,padding:"12px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Back</button>
+        </div>
+        </React.Fragment>)}
       </div>
     </div>
   </div>);
 }
 
-function AdminModal({onClose,custs,cls,wos,techList,saveTechs}){
+function AdminModal({onClose,custs,cls,wos,techList,saveTechs,pins,savePin}){
   const [pin,setPin]=useState("");
   const [auth,setAuth]=useState(false);
   const [newName,setNewName]=useState("");
   const [err,setErr]=useState("");
+  const okPin=p=>p===ADMIN_PIN||(pins&&pins[ADMIN_TECH]&&p===pins[ADMIN_TECH]);
+  function setPinFor(t){
+    const p=prompt("Set 4-digit PIN for "+t+(pins[t]?" (current: "+pins[t]+")":""));
+    if(p==null)return;
+    if(p!==""&&!/^\d{4}$/.test(p)){alert("PIN must be exactly 4 digits (or blank to remove).");return;}
+    savePin(t,p);
+  }
   const fi={width:"100%",background:"#f2f5f8",border:"1px solid #d0dce8",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"};
   if(!auth)return(<div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{background:"#fff",borderRadius:14,padding:24,width:"100%",maxWidth:320,textAlign:"center"}}>
       <div style={{fontSize:38,marginBottom:8}}>&#128272;</div>
       <div style={{fontSize:18,fontWeight:900,color:"#0d2a47",marginBottom:4}}>Admin Access</div>
       <div style={{fontSize:12,color:"#2a3f4f",marginBottom:16}}>Enter your PIN</div>
-      <input type="password" maxLength={6} value={pin} onChange={e=>setPin(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(pin===ADMIN_PIN?setAuth(true):setErr("Wrong PIN"))} style={{...fi,textAlign:"center",fontSize:24,fontWeight:700,letterSpacing:8,marginBottom:8}} placeholder="...."/>
+      <input type="password" maxLength={6} value={pin} onChange={e=>setPin(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(okPin(pin)?setAuth(true):setErr("Wrong PIN"))} style={{...fi,textAlign:"center",fontSize:24,fontWeight:700,letterSpacing:8,marginBottom:8}} placeholder="...."/>
       {err&&<div style={{color:"#9e2424",fontSize:12,fontWeight:700,marginBottom:8}}>{err}</div>}
       <div style={{display:"flex",gap:9}}>
-        <button onClick={()=>{if(pin===ADMIN_PIN)setAuth(true);else setErr("Wrong PIN");}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Unlock</button>
+        <button onClick={()=>{if(okPin(pin))setAuth(true);else setErr("Wrong PIN");}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Unlock</button>
         <button onClick={onClose} style={{background:"#e8edf2",color:"#2a3f4f",border:"none",borderRadius:6,padding:"10px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Cancel</button>
       </div>
     </div>
@@ -146,7 +170,10 @@ function AdminModal({onClose,custs,cls,wos,techList,saveTechs}){
           {t===ADMIN_TECH&&<span style={{fontSize:10,background:"#c9832a",color:"#fff",fontWeight:800,padding:"2px 7px",borderRadius:4}}>OWNER</span>}
           <span style={{fontSize:14,fontWeight:700,color:"#0d2a47"}}>{t}</span>
         </div>
-        {t!==ADMIN_TECH&&<button onClick={()=>{if(confirm("Remove "+t+"?"))saveTechs(techList.filter(x=>x!==t));}} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:5,padding:"5px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>Remove</button>}
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>setPinFor(t)} style={{background:pins[t]?"#135e34":"#1f6296",color:"#fff",border:"none",borderRadius:5,padding:"5px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>{pins[t]?"PIN ✓":"Set PIN"}</button>
+          {t!==ADMIN_TECH&&<button onClick={()=>{if(confirm("Remove "+t+"?"))saveTechs(techList.filter(x=>x!==t));}} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:5,padding:"5px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>Remove</button>}
+        </div>
       </div>))}
       <div style={{display:"flex",gap:8,marginTop:10}}>
         <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="New tech name..." style={{...fi,flex:1}}/>
@@ -164,6 +191,7 @@ function App(){
   const [cls,setCls]=useState([]);
   const [wos,setWos]=useState([]);
   const [techList,setTechList]=useState(DEFAULT_TECHS);
+  const [techPins,setTechPins]=useState({});
   const [screen,setScreen]=useState("list");
   const [cust,setCust]=useState(null);
   const [cl,setCl]=useState(null);
@@ -175,27 +203,11 @@ function App(){
 
   useEffect(()=>{
     loadAll();
-    // Real-time: try Supabase subscriptions first, poll every 12s as reliable fallback
-    const sub = sb.channel('portal-realtime')
-      .on('postgres_changes',{event:'*',schema:'public',table:'customers'},   ()=>sb.from('customers').select('*').then(r=>{ if(!r.error) setCusts(r.data||[]); }))
-      .on('postgres_changes',{event:'*',schema:'public',table:'checklists'},  ()=>sb.from('checklists').select('*').then(r=>{ if(!r.error) setCls(r.data||[]); }))
-      .on('postgres_changes',{event:'*',schema:'public',table:'workorders'},  ()=>sb.from('workorders').select('*').then(r=>{ if(!r.error) setWos(r.data||[]); }))
-      .on('postgres_changes',{event:'*',schema:'public',table:'techs'},       ()=>sb.from('techs').select('*').then(r=>{ if(!r.error && r.data?.length) setTechList(r.data.map(x=>x.name)); }))
+    const iv=setInterval(loadAll,12000);
+    const chan=sb.channel('db-changes')
+      .on('postgres_changes',{event:'*',schema:'public'},()=>loadAll())
       .subscribe();
-    const poll = setInterval(()=>{
-      Promise.all([
-        sb.from('customers').select('*'),
-        sb.from('checklists').select('*'),
-        sb.from('workorders').select('*'),
-        sb.from('techs').select('*'),
-      ]).then(([c,ch,wo,t])=>{
-        if(!c.error) setCusts(c.data||[]);
-        if(!ch.error) setCls(ch.data||[]);
-        if(!wo.error) setWos(wo.data||[]);
-        if(!t.error && t.data?.length) setTechList(t.data.map(x=>x.name));
-      });
-    }, 12000);
-    return ()=>{ sb.removeChannel(sub); clearInterval(poll); };
+    return()=>{clearInterval(iv);sb.removeChannel(chan);};
   },[]);
 
   async function loadAll(){
@@ -213,7 +225,7 @@ function App(){
       setCusts(c.data||[]);
       setCls(ch.data||[]);
       setWos(wo.data||[]);
-      if(t.data&&t.data.length>0)setTechList(t.data.map(x=>x.name));
+      if(t.data&&t.data.length>0){setTechList(t.data.map(x=>x.name));setTechPins(Object.fromEntries(t.data.map(x=>[x.name,x.pin||""])));}
     }catch(e){setLoadErr(e.message);}
     setLoading(false);
   }
@@ -267,6 +279,11 @@ function App(){
     if(error){alert('Error:\n'+error.message);return;}
     setWos(prev=>prev.filter(x=>x.id!==id));
   }
+  async function savePin(name,pin){
+    const{error}=await sb.from('techs').update({pin}).eq('name',name);
+    if(error){alert('Error saving PIN:\n'+error.message+'\n\nIf the pin column is missing, run this in the Supabase SQL editor:\nALTER TABLE techs ADD COLUMN pin text;');return;}
+    setTechPins(prev=>({...prev,[name]:pin}));
+  }
   async function saveTechs(newList){
     const toRemove=techList.filter(n=>!newList.includes(n));
     const toAdd=newList.filter(n=>!techList.includes(n));
@@ -286,7 +303,7 @@ function App(){
     <button onClick={()=>{setLoading(true);loadAll();}} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Retry</button>
   </div>);
 
-  if(!tech)return <Login onLogin={setTech} techs={techList}/>;
+  if(!tech)return <Login onLogin={setTech} techs={techList} pins={techPins}/>;
 
   function Hdr(){return(<div style={{background:"#0d2a47",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"3px solid #c9832a"}}>
     <div style={{color:"#fff",fontSize:17,fontWeight:900}}>&#9875; Service Portal</div>
@@ -333,7 +350,7 @@ function App(){
         else{await updateCust(cust.id,f);setCust(prev=>({...prev,...f}));}
         setModal(null);
       }} onDelete={async()=>{if(!confirm("Delete customer?"))return;await deleteCust(cust.id);setModal(null);setCust(null);setScreen("list");}}/>}
-      {adminOpen&&<AdminModal onClose={()=>setAdminOpen(false)} custs={custs} cls={cls} wos={wos} techList={techList} saveTechs={saveTechs}/>}
+      {adminOpen&&<AdminModal onClose={()=>setAdminOpen(false)} custs={custs} cls={cls} wos={wos} techList={techList} saveTechs={saveTechs} pins={techPins} savePin={savePin}/>}
     </div>);
   }
 
@@ -416,7 +433,7 @@ function App(){
     {woModal&&<WOModal wo={woModal==="add"?null:woModal} onClose={()=>setWoModal(null)}
       onSave={async f=>{if(woModal==="add"){await addWO({...mkWO(cust.id,tech),...f});}else{await updateWO(woModal.id,f);}setWoModal(null);}}
       onDelete={async()=>{if(!confirm("Delete WO?"))return;await deleteWO(woModal.id);setWoModal(null);}}/>}
-    {adminOpen&&<AdminModal onClose={()=>setAdminOpen(false)} custs={custs} cls={cls} wos={wos} techList={techList} saveTechs={saveTechs}/>}
+    {adminOpen&&<AdminModal onClose={()=>setAdminOpen(false)} custs={custs} cls={cls} wos={wos} techList={techList} saveTechs={saveTechs} pins={techPins} savePin={savePin}/>}
   </div>);
 }
 
@@ -586,4 +603,22 @@ function CustModal({cust,onSave,onDelete,onClose}){
       </div>
       <label style={lb}>Name *</label>
       <input style={{...fi,marginBottom:9}} value={f.name} onChange={e=>u("name",e.target.value)} placeholder="Required"/>
-      <div style={{display:"gr
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:9}}>
+        {[["ph","Phone"],["em","Email"]].map(([k,l])=>(<div key={k}><label style={lb}>{l}</label><input style={fi} value={f[k]} onChange={e=>u(k,e.target.value)}/></div>))}
+      </div>
+      <div style={{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#2a3f4f",margin:"10px 0 8px"}}>Vessel</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:16}}>
+        {[["vm","Make"],["vmo","Model"],["vy","Year"],["ve","Engine"],["vc","Color"],["vs","Slip #"]].map(([k,l])=>(<div key={k}><label style={lb}>{l}</label><input style={fi} value={f[k]} onChange={e=>u(k,e.target.value)}/></div>))}
+      </div>
+      <div style={{display:"flex",gap:9}}>
+        <button onClick={()=>{if(!f.name){alert("Name required.");return;}onSave(f);}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 16px",fontSize:12,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>{cust?"Save":"Add Customer"}</button>
+        {cust&&<button onClick={onDelete} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:6,padding:"10px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Delete</button>}
+      </div>
+    </div>
+  </div>);
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
