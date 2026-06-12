@@ -20,13 +20,14 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const ADMIN_TECH = "Duke";
 const ADMIN_PIN = "2024";
+const APP_VERSION = "v2.1";
 const PSALT = "_MSP";
 const emailFor = n => n.toLowerCase().replace(/[^a-z0-9]/g,"") + "@marineportal.local";
 const DEFAULT_TECHS = ["Meric","Duke","Steve","Chris"];
 const LOCS = ["Marina","Yard 1","Yard 2","Rack","Offsite"];
 const DMG = ["Gel Coat","Hull Crack","Rub Rail","Canvas/Cover","Upholstery","Mechanical","Electrical","Other"];
 const SEC_COLS = ["#0d2a47","#7a4010","#1e5f8a","#1a5a3a"];
-const WO_STATUS = {open:"#1f6296","in progress":"#c9832a",complete:"#135e34"};
+const WO_STATUS = {open:"#1f6296","in progress":"#2d7db5",complete:"#135e34"};
 const GOLD_ONLY = ["Mechanical","Systems"];
 const CK = [
   {s:"Launch",i:["Engine Plugs & Hoses","Connect Batteries","Fluid Levels","Hull Plug","Bilge / Leak Check","Start & Run Engine","Bumpers & Lines","Shorepower Cord","Battery Switch - Off","Key to Office"]},
@@ -72,12 +73,12 @@ function WOCard({wo,onEdit}){
     <div onClick={()=>setOpen(!open)} style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
       <div style={{flex:1,minWidth:0}}>
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          <span style={{fontSize:16,fontWeight:900,color:"#c9832a"}}>WO# {wo.woNum||"--"}</span>
+          <span style={{fontSize:16,fontWeight:900,color:"#2d7db5"}}>WO# {wo.woNum||"--"}</span>
           <span style={{fontSize:9,fontWeight:700,textTransform:"uppercase",padding:"2px 8px",borderRadius:10,color:"#fff",background:col}}>{wo.status}</span>
         </div>
         <div style={{fontSize:13,fontWeight:700,color:"#0d2a47",marginTop:3}}>{wo.desc||"No description"}</div>
         <div style={{fontSize:10.5,color:"#2a3f4f",marginTop:2}}>{wo.date} - {wo.tech}</div>
-        {wo.lut&&<div style={{fontSize:10,fontWeight:700,color:"#1f6296",marginTop:3}}>Last update: {new Date(wo.lut).toLocaleDateString("en-US",{month:"short",day:"numeric"})}, {new Date(wo.lut).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})} by {wo.lub}</div>}
+        <div style={{fontSize:10,fontWeight:700,color:"#1f6296",marginTop:3}}>Last update: {wo.lut?(new Date(wo.lut).toLocaleDateString("en-US",{month:"short",day:"numeric"})+", "+new Date(wo.lut).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})+" by "+wo.lub):(wo.date+" by "+wo.tech)}</div>
       </div>
       <span style={{fontSize:13,color:"#2a3f4f",marginLeft:10,display:"inline-block",transform:open?"rotate(90deg)":"rotate(0deg)",transition:"transform .2s",flexShrink:0}}>&#9658;</span>
     </div>
@@ -110,9 +111,10 @@ function Login({onLogin,techs}){
   }
   return(<div style={{minHeight:"100vh",background:"linear-gradient(180deg,#0d2a47,#06141f)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
     <div style={{background:"#fff",borderRadius:16,overflow:"hidden",maxWidth:380,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
-      <div style={{background:"linear-gradient(160deg,#0d2a47,#143452)",borderBottom:"4px solid #c9832a",padding:"28px 22px",textAlign:"center"}}>
+      <div style={{background:"linear-gradient(160deg,#0d2a47,#143452)",borderBottom:"4px solid #2d7db5",padding:"28px 22px",textAlign:"center"}}>
         <div style={{fontSize:52,marginBottom:6}}>&#9875;</div>
         <div style={{fontSize:10,color:"rgba(255,255,255,.5)",letterSpacing:3,textTransform:"uppercase"}}>Marine Service Portal</div>
+        <div style={{fontSize:9,color:"rgba(255,255,255,.35)",marginTop:4,fontWeight:700}}>{APP_VERSION}</div>
       </div>
       <div style={{padding:"22px 20px 26px"}}>
         {!sel?(<React.Fragment>
@@ -125,7 +127,7 @@ function Login({onLogin,techs}){
         <input type="password" inputMode="numeric" maxLength={4} autoFocus value={pin} onChange={e=>{setPin(e.target.value.replace(/\D/g,""));setErr("");}} onKeyDown={e=>e.key==="Enter"&&go()} style={{width:"100%",textAlign:"center",fontSize:32,fontWeight:700,letterSpacing:12,padding:"16px 10px",border:"1px solid #d0dce8",borderRadius:12,background:"#f2f5f8",outline:"none",boxSizing:"border-box",marginBottom:12}} placeholder="...."/>
         {err&&<div style={{color:"#9e2424",fontSize:14,fontWeight:700,textAlign:"center",marginBottom:10}}>{err}</div>}
         <div style={{display:"flex",gap:10}}>
-          <button onClick={go} disabled={busy} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:12,padding:"18px",fontSize:17,fontWeight:800,cursor:"pointer",opacity:busy?.6:1}}>{busy?"...":"Sign In"}</button>
+          <button onClick={go} disabled={busy} style={{flex:1,background:"#2d7db5",color:"#fff",border:"none",borderRadius:12,padding:"18px",fontSize:17,fontWeight:800,cursor:"pointer",opacity:busy?.6:1}}>{busy?"...":"Sign In"}</button>
           <button onClick={()=>{setSel(null);setPin("");setErr("");}} style={{background:"#e8edf2",color:"#2a3f4f",border:"none",borderRadius:12,padding:"18px 22px",fontSize:16,fontWeight:700,cursor:"pointer"}}>Back</button>
         </div>
         </React.Fragment>)}
@@ -150,7 +152,7 @@ function AdminModal({onClose,custs,cls,wos,techList,saveTechs}){
       <input type="password" maxLength={6} value={pin} onChange={e=>setPin(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(okPin(pin)?setAuth(true):setErr("Wrong PIN"))} style={{...fi,textAlign:"center",fontSize:24,fontWeight:700,letterSpacing:8,marginBottom:8}} placeholder="...."/>
       {err&&<div style={{color:"#9e2424",fontSize:12,fontWeight:700,marginBottom:8}}>{err}</div>}
       <div style={{display:"flex",gap:9}}>
-        <button onClick={()=>{if(okPin(pin))setAuth(true);else setErr("Wrong PIN");}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Unlock</button>
+        <button onClick={()=>{if(okPin(pin))setAuth(true);else setErr("Wrong PIN");}} style={{flex:1,background:"#2d7db5",color:"#fff",border:"none",borderRadius:6,padding:"10px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Unlock</button>
         <button onClick={onClose} style={{background:"#e8edf2",color:"#2a3f4f",border:"none",borderRadius:6,padding:"10px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Cancel</button>
       </div>
     </div>
@@ -162,7 +164,7 @@ function AdminModal({onClose,custs,cls,wos,techList,saveTechs}){
         <button onClick={onClose} style={{background:"transparent",border:"none",fontSize:22,color:"#999",cursor:"pointer"}}>X</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:18}}>
-        {[[custs.length,"Customers","#1f6296"],[wos.length,"Work Orders","#c9832a"],[cls.length,"Checklists","#135e34"]].map(([n,l,c])=>(<div key={l} style={{background:"#f0f4f8",borderRadius:8,padding:"12px 8px",textAlign:"center",border:"1px solid #d0dce8"}}>
+        {[[custs.length,"Customers","#1f6296"],[wos.length,"Work Orders","#2d7db5"],[cls.length,"Checklists","#135e34"]].map(([n,l,c])=>(<div key={l} style={{background:"#f0f4f8",borderRadius:8,padding:"12px 8px",textAlign:"center",border:"1px solid #d0dce8"}}>
           <div style={{fontSize:28,fontWeight:900,color:c}}>{n}</div>
           <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#2a3f4f",marginTop:3}}>{l}</div>
         </div>))}
@@ -170,7 +172,7 @@ function AdminModal({onClose,custs,cls,wos,techList,saveTechs}){
       <div style={{fontSize:11,fontWeight:800,textTransform:"uppercase",letterSpacing:1,color:"#0d2a47",marginBottom:10}}>Manage Technicians</div>
       {techList.map(t=>(<div key={t} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:"#f8fafb",border:"1px solid #d0dce8",borderRadius:7,marginBottom:7}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          {t===ADMIN_TECH&&<span style={{fontSize:10,background:"#c9832a",color:"#fff",fontWeight:800,padding:"2px 7px",borderRadius:4}}>OWNER</span>}
+          {t===ADMIN_TECH&&<span style={{fontSize:10,background:"#2d7db5",color:"#fff",fontWeight:800,padding:"2px 7px",borderRadius:4}}>OWNER</span>}
           <span style={{fontSize:14,fontWeight:700,color:"#0d2a47"}}>{t}</span>
         </div>
         {t!==ADMIN_TECH&&<button onClick={()=>{if(confirm("Remove "+t+"?"))saveTechs(techList.filter(x=>x!==t));}} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:5,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Remove</button>}
@@ -296,15 +298,15 @@ function App(){
   if(loadErr)return(<div style={{minHeight:"100vh",background:"linear-gradient(180deg,#0d2a47,#06141f)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14,padding:24}}>
     <div style={{color:"#fff",fontSize:15,fontWeight:800,textAlign:"center"}}>Could not connect to database</div>
     <div style={{color:"rgba(255,255,255,.55)",fontSize:11,textAlign:"center",maxWidth:320,lineHeight:1.6,fontFamily:"monospace",background:"rgba(0,0,0,.3)",padding:"10px 14px",borderRadius:8}}>{loadErr}</div>
-    <button onClick={()=>{setLoading(true);loadAll();}} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Retry</button>
+    <button onClick={()=>{setLoading(true);loadAll();}} style={{background:"#2d7db5",color:"#fff",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Retry</button>
   </div>);
 
   if(!tech)return <Login onLogin={setTech} techs={techList}/>;
 
-  function Hdr(){return(<div style={{background:"#0d2a47",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"3px solid #c9832a"}}>
-    <div style={{color:"#fff",fontSize:17,fontWeight:900}}>&#9875; Service Portal</div>
+  function Hdr(){return(<div style={{background:"#0d2a47",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"3px solid #2d7db5"}}>
+    <div style={{color:"#fff",fontSize:17,fontWeight:900}}>&#9875; Service Portal <span style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.45)",verticalAlign:"middle"}}>{APP_VERSION}</span></div>
     <div style={{display:"flex",gap:8,alignItems:"center"}}>
-      {tech===ADMIN_TECH&&<button onClick={()=>setAdminOpen(true)} style={{background:"#c9832a",color:"#0d2a47",border:"none",borderRadius:8,padding:"10px 14px",fontSize:13,fontWeight:800,cursor:"pointer"}}>Admin</button>}
+      {tech===ADMIN_TECH&&<button onClick={()=>setAdminOpen(true)} style={{background:"#2d7db5",color:"#0d2a47",border:"none",borderRadius:8,padding:"10px 14px",fontSize:13,fontWeight:800,cursor:"pointer"}}>Admin</button>}
       <button onClick={()=>{const a=prompt("Admin PIN required to change PINs");if(a==null)return;if(a!==ADMIN_PIN){alert("Only the owner can change PINs.");return;}const p=prompt("New 4-digit PIN for "+tech);if(p==null)return;if(!/^\d{4}$/.test(p)){alert("PIN must be exactly 4 digits.");return;}sb.auth.updateUser({password:p+PSALT}).then(r=>alert(r.error?("Error: "+r.error.message):"PIN updated."));}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:8,padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13}}>PIN</button>
       <span style={{background:"rgba(255,255,255,.15)",color:"#fff",fontSize:12,fontWeight:800,padding:"8px 12px",borderRadius:6}}>{tech}</span>
       <button onClick={()=>{sb.auth.signOut();setTech(null);setScreen("list");setCust(null);setCl(null);}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:8,padding:"10px 14px",cursor:"pointer",fontWeight:700,fontSize:13}}>Out</button>
@@ -318,13 +320,13 @@ function App(){
       <div style={{padding:14}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#2a3f4f"}}>{custs.length} Customers</div>
-          <button onClick={()=>setModal("add")} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",fontSize:11,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>+ Add Customer</button>
+          <button onClick={()=>setModal("add")} style={{background:"#2d7db5",color:"#fff",border:"none",borderRadius:6,padding:"8px 14px",fontSize:11,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>+ Add Customer</button>
         </div>
         {custs.length>0&&<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." style={{width:"100%",background:"#f2f5f8",border:"1px solid #d0dce8",borderRadius:6,padding:"8px 10px",fontSize:13,marginBottom:10,boxSizing:"border-box",outline:"none"}}/>}
         {fl.length===0&&<div style={{textAlign:"center",padding:"40px 16px"}}>
           <div style={{fontSize:40,opacity:.15,marginBottom:10}}>&#9875;</div>
           <div style={{fontSize:15,fontWeight:800,color:"#0d2a47",marginBottom:12}}>No customers yet</div>
-          <button onClick={()=>setModal("add")} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 18px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Add First Customer</button>
+          <button onClick={()=>setModal("add")} style={{background:"#2d7db5",color:"#fff",border:"none",borderRadius:6,padding:"10px 18px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Add First Customer</button>
         </div>}
         {fl.map(c=>{
           const nc=cls.filter(x=>x.cid===c.id).length;
@@ -335,10 +337,10 @@ function App(){
               <div style={{fontSize:11,color:"#2a3f4f",marginTop:2}}>{[c.vm,c.vmo,c.vy].filter(Boolean).join(" ")||"No vessel"}{c.vs?" - Slip "+c.vs:""}</div>
               <div style={{display:"flex",gap:8,marginTop:3}}>
                 {nc>0&&<span style={{fontSize:10,fontWeight:700,color:"#1f6296"}}>{nc} checklist{nc>1?"s":""}</span>}
-                {nw>0&&<span style={{fontSize:10,fontWeight:700,color:"#c9832a"}}>{nw} WO{nw>1?"s":""}</span>}
+                {nw>0&&<span style={{fontSize:10,fontWeight:700,color:"#2d7db5"}}>{nw} WO{nw>1?"s":""}</span>}
               </div>
             </div>
-            <div style={{fontSize:22,color:"#c9832a"}}>&#8250;</div>
+            <div style={{fontSize:22,color:"#2d7db5"}}>&#8250;</div>
           </div>);
         })}
       </div>
@@ -365,8 +367,8 @@ function App(){
         </div>
         <div style={{display:"flex",gap:7}}>
           <button onClick={()=>setModal("edit")} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Edit</button>
-          {custTab==="cl"&&<button onClick={async()=>{const x=mkCL(cust.id,tech);const d=await addCL(x);if(d){setCl(d);setScreen("cl");}}} style={{background:"#c9832a",color:"#0d2a47",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ New</button>}
-          {custTab==="wo"&&<button onClick={()=>setWoModal("add")} style={{background:"#c9832a",color:"#0d2a47",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Add WO</button>}
+          {custTab==="cl"&&<button onClick={async()=>{const x=mkCL(cust.id,tech);const d=await addCL(x);if(d){setCl(d);setScreen("cl");}}} style={{background:"#2d7db5",color:"#0d2a47",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ New</button>}
+          {custTab==="wo"&&<button onClick={()=>setWoModal("add")} style={{background:"#2d7db5",color:"#0d2a47",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Add WO</button>}
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",borderTop:"1px solid rgba(255,255,255,.1)",marginTop:10}}>
@@ -380,8 +382,8 @@ function App(){
         <span style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,.9)",letterSpacing:1}}>{cust.hn||"--"}</span>
       </div>
     </div>
-    <div style={{display:"flex",background:"#163860",borderBottom:"2px solid #c9832a"}}>
-      {[["cl","Checklists"],["wo","Work Orders"],["tr","Trailer"]].map(([v,l])=>(<button key={v} onClick={()=>setCustTab(v)} style={{flex:1,background:"transparent",border:"none",borderBottom:custTab===v?"4px solid #c9832a":"4px solid transparent",marginBottom:-2,color:custTab===v?"#c9832a":"rgba(255,255,255,.45)",padding:"18px 8px",fontSize:15,fontWeight:800,textTransform:"uppercase",letterSpacing:.5,cursor:"pointer",fontFamily:"-apple-system,sans-serif"}}>{l}</button>))}
+    <div style={{display:"flex",background:"#163860",borderBottom:"2px solid #2d7db5"}}>
+      {[["cl","Checklists"],["wo","Work Orders"],["tr","Trailer"]].map(([v,l])=>(<button key={v} onClick={()=>setCustTab(v)} style={{flex:1,background:"transparent",border:"none",borderBottom:custTab===v?"4px solid #2d7db5":"4px solid transparent",marginBottom:-2,color:custTab===v?"#2d7db5":"rgba(255,255,255,.45)",padding:"18px 8px",fontSize:15,fontWeight:800,textTransform:"uppercase",letterSpacing:.5,cursor:"pointer",fontFamily:"-apple-system,sans-serif"}}>{l}</button>))}
     </div>
     {custTab==="cl"&&(<>
       <div style={{background:"#1a3a5c",padding:"8px 12px",overflowX:"auto",whiteSpace:"nowrap",borderBottom:"1px solid #2a4a6c"}}>
@@ -389,7 +391,7 @@ function App(){
         :myCls.map(x=>{
           const on=cl&&cl.id===x.id&&screen==="cl";
           const col=x.status==="complete"?"#135e34":x.status==="attention"?"#9e2424":"#1f6296";
-          return(<span key={x.id} onClick={()=>{setCl(x);setScreen("cl");}} style={{display:"inline-flex",alignItems:"center",gap:5,background:on?"#c9832a":"rgba(255,255,255,.1)",border:"1px solid "+(on?"#c9832a":"rgba(255,255,255,.18)"),borderRadius:16,padding:"5px 11px",cursor:"pointer",fontSize:10,fontWeight:700,color:on?"#0d2a47":"rgba(255,255,255,.7)",marginRight:6}}>
+          return(<span key={x.id} onClick={()=>{setCl(x);setScreen("cl");}} style={{display:"inline-flex",alignItems:"center",gap:5,background:on?"#2d7db5":"rgba(255,255,255,.1)",border:"1px solid "+(on?"#2d7db5":"rgba(255,255,255,.18)"),borderRadius:16,padding:"5px 11px",cursor:"pointer",fontSize:10,fontWeight:700,color:on?"#0d2a47":"rgba(255,255,255,.7)",marginRight:6}}>
             <span style={{width:6,height:6,borderRadius:"50%",background:on?"#0d2a47":col,display:"inline-block"}}/>
             {new Date(x.ts).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
           </span>);
@@ -399,7 +401,7 @@ function App(){
         {myCls.length===0?<div style={{textAlign:"center",padding:"32px 16px"}}>
           <div style={{fontSize:34,opacity:.15,marginBottom:8}}>&#128203;</div>
           <div style={{fontSize:14,fontWeight:800,color:"#0d2a47",marginBottom:10}}>No checklists yet</div>
-          <button onClick={async()=>{const x=mkCL(cust.id,tech);const d=await addCL(x);if(d){setCl(d);setScreen("cl");}}} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 18px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ New Checklist</button>
+          <button onClick={async()=>{const x=mkCL(cust.id,tech);const d=await addCL(x);if(d){setCl(d);setScreen("cl");}}} style={{background:"#2d7db5",color:"#fff",border:"none",borderRadius:6,padding:"10px 18px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ New Checklist</button>
         </div>
         :myCls.map(x=>{
           const p=prog(x);
@@ -407,7 +409,7 @@ function App(){
           return(<div key={x.id} onClick={()=>{setCl(x);setScreen("cl");}} style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:8,padding:"11px 13px",marginBottom:8,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div>
               <div style={{fontSize:14,fontWeight:800,color:"#0d2a47"}}>{new Date(x.ts).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
-              <div style={{fontSize:10.5,color:"#2a3f4f",marginTop:2}}>{x.tech} - {p.d}/{p.t} items - <span style={{fontWeight:800,color:x.pkg==="gold"?"#c9832a":"#1f6296",textTransform:"uppercase"}}>{x.pkg}</span></div>
+              <div style={{fontSize:10.5,color:"#2a3f4f",marginTop:2}}>{x.tech} - {p.d}/{p.t} items - <span style={{fontWeight:800,color:x.pkg==="gold"?"#0d2a47":"#1f6296",textTransform:"uppercase"}}>{x.pkg}</span></div>
               {x.lut&&<div style={{fontSize:10,fontWeight:700,color:"#1f6296",marginTop:3}}>Last update: {new Date(x.lut).toLocaleDateString("en-US",{month:"short",day:"numeric"})}, {new Date(x.lut).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})} by {x.lub}</div>}
               <div style={{width:70,height:4,background:"#e8edf2",borderRadius:2,marginTop:5}}><div style={{height:"100%",width:p.p+"%",borderRadius:2,background:col}}/></div>
             </div>
@@ -424,7 +426,7 @@ function App(){
       {myWos.length===0?<div style={{textAlign:"center",padding:"32px 16px"}}>
         <div style={{fontSize:34,opacity:.15,marginBottom:8}}>&#128295;</div>
         <div style={{fontSize:14,fontWeight:800,color:"#0d2a47",marginBottom:10}}>No work orders yet</div>
-        <button onClick={()=>setWoModal("add")} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 18px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Add Work Order</button>
+        <button onClick={()=>setWoModal("add")} style={{background:"#2d7db5",color:"#fff",border:"none",borderRadius:6,padding:"10px 18px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Add Work Order</button>
       </div>
       :myWos.map(wo=><WOCard key={wo.id} wo={wo} onEdit={setWoModal}/>)}
     </div>)}
@@ -471,7 +473,7 @@ function CLView({cl,onUpdate,onDelete}){
       <button onClick={onDelete} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:6,padding:"6px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>Delete</button>
     </div>
     <div style={{display:"flex",border:"1px solid #d0dce8",borderRadius:8,overflow:"hidden",marginBottom:12}}>
-      {[["basic","Basic","#1f6296"],["gold","Gold","#c9832a"]].map(([v,l,c])=>(<button key={v} onClick={()=>onUpdate({pkg:v})} style={{flex:1,background:cl.pkg===v?c:"#f2f5f8",color:cl.pkg===v?"#fff":"#2a3f4f",border:"none",padding:"16px",fontSize:14,fontWeight:800,textTransform:"uppercase",letterSpacing:1,cursor:"pointer"}}>{l}</button>))}
+      {[["basic","Basic","#1f6296"],["gold","Gold","#0d2a47"]].map(([v,l,c])=>(<button key={v} onClick={()=>onUpdate({pkg:v})} style={{flex:1,background:cl.pkg===v?c:"#f2f5f8",color:cl.pkg===v?"#fff":"#2a3f4f",border:"none",padding:"16px",fontSize:14,fontWeight:800,textTransform:"uppercase",letterSpacing:1,cursor:"pointer"}}>{l}</button>))}
     </div>
     <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
       {[["open","Open","#1f6296"],["complete","Complete","#135e34"],["attention","Attention","#9e2424"]].map(([v,l,c])=>(<button key={v} onClick={()=>onUpdate({status:v})} style={{background:cl.status===v?c:"#e8edf2",color:cl.status===v?"#fff":"#2a3f4f",border:"none",borderRadius:7,padding:"12px 16px",fontSize:12,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>{l}</button>))}
@@ -559,7 +561,7 @@ function TrailerPane({cust,onSave}){
         <input style={{...fi,marginBottom:10}} value={t.hitch||""} onChange={e=>u("hitch",e.target.value)} placeholder={'e.g. 2 5/16"'}/>
         <label style={lb}>Notes</label>
         <textarea rows={3} style={{...fi,resize:"none",marginBottom:12}} value={t.notes||""} onChange={e=>u("notes",e.target.value)} placeholder="Storage location, condition, lights, bearings..."/>
-        <button onClick={async()=>{setSaving(true);await onSave(t);setSaving(false);setSaved(true);}} disabled={saving} style={{width:"100%",background:saved?"#135e34":"#c9832a",color:"#fff",border:"none",borderRadius:8,padding:"16px",fontSize:14,fontWeight:800,textTransform:"uppercase",cursor:"pointer",opacity:saving?.6:1}}>{saving?"Saving...":saved?"Saved ✓":"Save Trailer Info"}</button>
+        <button onClick={async()=>{setSaving(true);await onSave(t);setSaving(false);setSaved(true);}} disabled={saving} style={{width:"100%",background:saved?"#135e34":"#2d7db5",color:"#fff",border:"none",borderRadius:8,padding:"16px",fontSize:14,fontWeight:800,textTransform:"uppercase",cursor:"pointer",opacity:saving?.6:1}}>{saving?"Saving...":saved?"Saved ✓":"Save Trailer Info"}</button>
       </div>
     </div>
   </div>);
@@ -584,7 +586,7 @@ function WOModal({wo,onSave,onDelete,onClose}){
         <button onClick={onClose} style={{background:"transparent",border:"none",fontSize:22,color:"#999",cursor:"pointer"}}>X</button>
       </div>
       <label style={lb}>WO Number *</label>
-      <input style={{...fi,marginBottom:12,fontSize:18,fontWeight:800,color:"#c9832a"}} value={f.woNum} onChange={e=>u("woNum",e.target.value)} placeholder="e.g. 1042"/>
+      <input style={{...fi,marginBottom:12,fontSize:18,fontWeight:800,color:"#2d7db5"}} value={f.woNum} onChange={e=>u("woNum",e.target.value)} placeholder="e.g. 1042"/>
       <label style={lb}>Description</label>
       <input style={{...fi,marginBottom:12}} value={f.desc} onChange={e=>u("desc",e.target.value)} placeholder="e.g. Engine tune-up, Haul out..."/>
       <label style={lb}>Status</label>
@@ -613,11 +615,11 @@ function WOModal({wo,onSave,onDelete,onClose}){
         <div style={{padding:"10px 12px",borderTop:parts.length>0?"1px solid #eef3f7":"none",display:"flex",flexDirection:"column",gap:8}}>
           <input ref={partRef} value={partName} onChange={e=>setPartName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addPart()} placeholder={"Part "+(parts.length+1)+" name"} style={{...fi,padding:"12px 12px",fontSize:15}}/>
           <input value={partDesc} onChange={e=>setPartDesc(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addPart()} placeholder="Description (optional)" style={{...fi,padding:"12px 12px",fontSize:15}}/>
-          <button onClick={addPart} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:8,padding:"14px",fontSize:14,fontWeight:800,cursor:"pointer"}}>+ Add Part to List</button>
+          <button onClick={addPart} style={{background:"#2d7db5",color:"#fff",border:"none",borderRadius:8,padding:"14px",fontSize:14,fontWeight:800,cursor:"pointer"}}>+ Add Part to List</button>
         </div>
       </div>
       <div style={{display:"flex",gap:9}}>
-        <button onClick={()=>{if(!f.woNum){alert("WO number required.");return;}onSave({...f,parts:allParts()});}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:8,padding:"16px",fontSize:14,fontWeight:800,textTransform:"uppercase",cursor:"pointer"}}>{wo?"Save":"Add WO"}</button>
+        <button onClick={()=>{if(!f.woNum){alert("WO number required.");return;}onSave({...f,parts:allParts()});}} style={{flex:1,background:"#2d7db5",color:"#fff",border:"none",borderRadius:8,padding:"16px",fontSize:14,fontWeight:800,textTransform:"uppercase",cursor:"pointer"}}>{wo?"Save":"Add WO"}</button>
         {wo&&<button onClick={onDelete} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:6,padding:"10px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Delete</button>}
       </div>
     </div>
@@ -649,7 +651,7 @@ function CustModal({cust,onSave,onDelete,onClose}){
         <input style={fi} value={f.hn} onChange={e=>u("hn",e.target.value)} placeholder="e.g. ABC12345D404"/>
       </div>
       <div style={{display:"flex",gap:9}}>
-        <button onClick={()=>{if(!f.name){alert("Name required.");return;}onSave(f);}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 16px",fontSize:12,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>{cust?"Save":"Add Customer"}</button>
+        <button onClick={()=>{if(!f.name){alert("Name required.");return;}onSave(f);}} style={{flex:1,background:"#2d7db5",color:"#fff",border:"none",borderRadius:6,padding:"10px 16px",fontSize:12,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>{cust?"Save":"Add Customer"}</button>
         {cust&&<button onClick={onDelete} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:6,padding:"10px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Delete</button>}
       </div>
     </div>
