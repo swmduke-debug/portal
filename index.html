@@ -20,7 +20,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const ADMIN_TECH = "Duke";
 const ADMIN_PIN = "2024";
-const APP_VERSION = "v2.1";
+const APP_VERSION = "v2.2";
 const PSALT = "_MSP";
 const emailFor = n => n.toLowerCase().replace(/[^a-z0-9]/g,"") + "@marineportal.local";
 const DEFAULT_TECHS = ["Meric","Duke","Steve","Chris"];
@@ -452,7 +452,7 @@ function CLView({cl,onUpdate,onDelete}){
   const p=prog(cl);
   const pcol=cl.status==="attention"?"#9e2424":cl.status==="complete"?"#135e34":"#1f6296";
   function tog(k){setOpen(prev=>({...prev,[k]:!prev[k]}));}
-  function togItem(si,ii,type){const next=secs.map((s,s2)=>s2!==si?s:{...s,items:s.items.map((it,i2)=>i2!==ii?it:type==="ok"?{...it,ok:!it.ok,at:false}:{...it,at:!it.at,ok:false})});onUpdate({secs:next});}
+  function togItem(si,ii,type){const next=secs.map((s,s2)=>s2!==si?s:{...s,items:s.items.map((it,i2)=>i2!==ii?it:type==="ok"?{...it,ok:!it.ok,at:false}:type==="hl"?{...it,hl:!it.hl}:{...it,at:!it.at,ok:false})});onUpdate({secs:next});}
   function setNote(si,ii,v){const next=secs.map((s,s2)=>s2!==si?s:{...s,items:s.items.map((it,i2)=>i2!==ii?it:{...it,note:v})});onUpdate({secs:next});}
   function addPhoto(file,isDmg){if(!file)return;resizeImg(file,data=>{if(isDmg){onUpdate({damage:{...dmg,photos:[...(dmg.photos||[]),data]}});}else{onUpdate({photos:[...(cl.photos||[]),data]});}})}
   function delPhoto(i,isDmg){if(isDmg){const ph=[...(dmg.photos||[])];ph.splice(i,1);onUpdate({damage:{...dmg,photos:ph}});}else{const ph=[...(cl.photos||[])];ph.splice(i,1);onUpdate({photos:ph});}}
@@ -491,15 +491,18 @@ function CLView({cl,onUpdate,onDelete}){
       return(<div key={si} style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:8,overflow:"hidden",marginBottom:10}}>
         <AHdr label={sec.s} bg={SEC_COLS[si]} k={sec.s} badge={sd+"/"+sec.items.length} isOpen={open[sec.s]} onToggle={tog}/>
         {open[sec.s]&&<div>
-          <div style={{display:"grid",gridTemplateColumns:"28px 28px 1fr 1.1fr",gap:0,padding:"4px 10px 2px",background:"#f8fafb",borderBottom:"1px solid #eef3f7"}}>
-            {["OK","!","Item","Note"].map(h=><span key={h} style={{fontSize:7,fontWeight:700,textTransform:"uppercase",color:"#2a3f4f",textAlign:h==="Item"?"left":"center"}}>{h}</span>)}
+          <div style={{display:"grid",gridTemplateColumns:"28px 28px 28px 1fr 1.1fr",gap:0,padding:"4px 10px 2px",background:"#f8fafb",borderBottom:"1px solid #eef3f7"}}>
+            {["OK","!","HL","Item","Note"].map(h=><span key={h} style={{fontSize:7,fontWeight:700,textTransform:"uppercase",color:"#2a3f4f",textAlign:h==="Item"?"left":"center"}}>{h}</span>)}
           </div>
-          {sec.items.map((it,ii)=>(<div key={ii} style={{display:"grid",gridTemplateColumns:"28px 28px 1fr 1.1fr",gap:4,alignItems:"center",padding:"7px 10px",borderBottom:ii<sec.items.length-1?"1px solid #eef3f7":"none",background:ii%2===0?"#fff":"#fafcfe"}}>
+          {sec.items.map((it,ii)=>(<div key={ii} style={{display:"grid",gridTemplateColumns:"28px 28px 28px 1fr 1.1fr",gap:4,alignItems:"center",padding:"7px 10px",borderBottom:ii<sec.items.length-1?"1px solid #eef3f7":"none",background:it.hl?"#fff3b8":(ii%2===0?"#fff":"#fafcfe")}}>
             <div onClick={()=>togItem(si,ii,"ok")} style={{width:26,height:26,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",border:"1.5px solid "+(it.ok?"#135e34":"#d0dce8"),background:it.ok?"#135e34":"#fff",cursor:"pointer"}}>
               {it.ok&&<svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5"><polyline points="2,6 5,9 10,3"/></svg>}
             </div>
             <div onClick={()=>togItem(si,ii,"at")} style={{width:26,height:26,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",border:"1.5px solid "+(it.at?"#9e2424":"#d0dce8"),background:it.at?"#9e2424":"#fff",cursor:"pointer"}}>
               {it.at&&<svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.5"><line x1="3" y1="3" x2="9" y2="9"/><line x1="9" y1="3" x2="3" y2="9"/></svg>}
+            </div>
+            <div onClick={()=>togItem(si,ii,"hl")} style={{width:26,height:26,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",border:"1.5px solid "+(it.hl?"#d4a200":"#d0dce8"),background:it.hl?"#f5c518":"#fff",cursor:"pointer",fontSize:13,fontWeight:900,color:"#5c4a00"}}>
+              {it.hl?"★":""}
             </div>
             <span style={{fontSize:12}}>{it.n}</span>
             <input style={{border:"none",borderBottom:"1px solid #d0dce8",background:"transparent",fontSize:11,width:"100%",outline:"none",padding:2}} value={it.note} onChange={e=>setNote(si,ii,e.target.value)} placeholder="note"/>
