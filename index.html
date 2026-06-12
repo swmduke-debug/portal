@@ -20,7 +20,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const ADMIN_TECH = "Duke";
 const ADMIN_PIN = "2024";
-const APP_VERSION = "v2.2";
+const APP_VERSION = "v2.3";
 const PSALT = "_MSP";
 const emailFor = n => n.toLowerCase().replace(/[^a-z0-9]/g,"") + "@marineportal.local";
 const DEFAULT_TECHS = ["Meric","Duke","Steve","Chris"];
@@ -104,10 +104,10 @@ function Login({onLogin,techs}){
   async function go(){
     if(pin.length<4||busy)return;
     setBusy(true);setErr("");
-    const{data,error}=await sb.auth.signInWithPassword({email:emailFor(sel),password:pin+PSALT});
+    const{data,error}=await sb.from('techs').select('pin').eq('name',sel).single();
     setBusy(false);
-    if(error){setErr("Wrong PIN");setPin("");}
-    else onLogin((data.user.user_metadata&&data.user.user_metadata.name)||sel);
+    if(error||!data||pin!==(data.pin||"0000")){setErr("Wrong PIN");setPin("");}
+    else{localStorage.setItem('sw_login',sel);onLogin(sel);}
   }
   return(<div style={{minHeight:"100vh",background:"linear-gradient(180deg,#0d2a47,#06141f)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
     <div style={{background:"#fff",borderRadius:16,overflow:"hidden",maxWidth:380,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
@@ -175,7 +175,10 @@ function AdminModal({onClose,custs,cls,wos,techList,saveTechs}){
           {t===ADMIN_TECH&&<span style={{fontSize:10,background:"#2d7db5",color:"#fff",fontWeight:800,padding:"2px 7px",borderRadius:4}}>OWNER</span>}
           <span style={{fontSize:14,fontWeight:700,color:"#0d2a47"}}>{t}</span>
         </div>
-        {t!==ADMIN_TECH&&<button onClick={()=>{if(confirm("Remove "+t+"?"))saveTechs(techList.filter(x=>x!==t));}} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:5,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Remove</button>}
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>{const p=prompt("New 4-digit PIN for "+t);if(p==null)return;if(!/^\d{4}$/.test(p)){alert("PIN must be exactly 4 digits.");return;}sb.from('techs').update({pin:p}).eq('name',t).then(r=>alert(r.error?("Error: "+r.error.message):(t+"'s PIN updated to "+p)));}} style={{background:"#1f6296",color:"#fff",border:"none",borderRadius:5,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Set PIN</button>
+          {t!==ADMIN_TECH&&<button onClick={()=>{if(confirm("Remove "+t+"?"))saveTechs(techList.filter(x=>x!==t));}} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:5,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Remove</button>}
+        </div>
       </div>))}
       <div style={{display:"flex",gap:8,marginTop:10}}>
         <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="New tech name..." style={{...fi,flex:1}}/>
@@ -204,7 +207,8 @@ function App(){
 
   useEffect(()=>{
     loadAll();
-    sb.auth.getSession().then(({data})=>{const u=data.session&&data.session.user;if(u)setTech((u.user_metadata&&u.user_metadata.name)||u.email.split("@")[0]);});
+    const saved=localStorage.getItem('sw_login');
+    if(saved)setTech(saved);
     const iv=setInterval(loadAll,12000);
     const chan=sb.channel('db-changes')
       .on('postgres_changes',{event:'*',schema:'public'},()=>loadAll())
@@ -287,7 +291,7 @@ function App(){
     const toAdd=newList.filter(n=>!techList.includes(n));
     setTechList(newList);
     if(toRemove.length>0)await sb.from('techs').delete().in('name',toRemove);
-    if(toAdd.length>0)await sb.from('techs').insert(toAdd.map(name=>({name})));
+    if(toAdd.length>0)await sb.from('techs').insert(toAdd.map(name=>({name,pin:'0000'})));
   }
 
   if(loading)return(<div style={{minHeight:"100vh",background:"linear-gradient(180deg,#0d2a47,#06141f)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14}}>
@@ -307,9 +311,8 @@ function App(){
     <div style={{color:"#fff",fontSize:17,fontWeight:900}}>&#9875; Service Portal <span style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.45)",verticalAlign:"middle"}}>{APP_VERSION}</span></div>
     <div style={{display:"flex",gap:8,alignItems:"center"}}>
       {tech===ADMIN_TECH&&<button onClick={()=>setAdminOpen(true)} style={{background:"#2d7db5",color:"#0d2a47",border:"none",borderRadius:8,padding:"10px 14px",fontSize:13,fontWeight:800,cursor:"pointer"}}>Admin</button>}
-      <button onClick={()=>{const a=prompt("Admin PIN required to change PINs");if(a==null)return;if(a!==ADMIN_PIN){alert("Only the owner can change PINs.");return;}const p=prompt("New 4-digit PIN for "+tech);if(p==null)return;if(!/^\d{4}$/.test(p)){alert("PIN must be exactly 4 digits.");return;}sb.auth.updateUser({password:p+PSALT}).then(r=>alert(r.error?("Error: "+r.error.message):"PIN updated."));}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:8,padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13}}>PIN</button>
       <span style={{background:"rgba(255,255,255,.15)",color:"#fff",fontSize:12,fontWeight:800,padding:"8px 12px",borderRadius:6}}>{tech}</span>
-      <button onClick={()=>{sb.auth.signOut();setTech(null);setScreen("list");setCust(null);setCl(null);}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:8,padding:"10px 14px",cursor:"pointer",fontWeight:700,fontSize:13}}>Out</button>
+      <button onClick={()=>{localStorage.removeItem('sw_login');setTech(null);setScreen("list");setCust(null);setCl(null);}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:8,padding:"10px 14px",cursor:"pointer",fontWeight:700,fontSize:13}}>Out</button>
     </div>
   </div>);}
 
