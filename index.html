@@ -20,6 +20,8 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const ADMIN_TECH = "Duke";
 const ADMIN_PIN = "2024";
+const PSALT = "_MSP";
+const emailFor = n => n.toLowerCase().replace(/[^a-z0-9]/g,"") + "@marineportal.local";
 const DEFAULT_TECHS = ["Meric","Duke","Steve","Chris"];
 const LOCS = ["Marina","Yard 1","Yard 2","Rack","Offsite"];
 const DMG = ["Gel Coat","Hull Crack","Rub Rail","Canvas/Cover","Upholstery","Mechanical","Electrical","Other"];
@@ -92,33 +94,38 @@ function WOCard({wo,onEdit}){
   </div>);
 }
 
-function Login({onLogin,techs,pins}){
+function Login({onLogin,techs}){
   const [sel,setSel]=useState(null);
   const [pin,setPin]=useState("");
   const [err,setErr]=useState("");
-  function go(){
-    if(pin===pins[sel])onLogin(sel);
-    else{setErr("Wrong PIN");setPin("");}
+  const [busy,setBusy]=useState(false);
+  async function go(){
+    if(pin.length<4||busy)return;
+    setBusy(true);setErr("");
+    const{data,error}=await sb.auth.signInWithPassword({email:emailFor(sel),password:pin+PSALT});
+    setBusy(false);
+    if(error){setErr("Wrong PIN");setPin("");}
+    else onLogin((data.user.user_metadata&&data.user.user_metadata.name)||sel);
   }
-  return(<div style={{minHeight:"100vh",background:"linear-gradient(180deg,#0d2a47,#06141f)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-    <div style={{background:"#fff",borderRadius:14,overflow:"hidden",maxWidth:320,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
-      <div style={{background:"linear-gradient(160deg,#0d2a47,#143452)",borderBottom:"4px solid #c9832a",padding:"26px 22px",textAlign:"center"}}>
-        <div style={{fontSize:48,marginBottom:6}}>&#9875;</div>
-        <div style={{fontSize:9,color:"rgba(255,255,255,.5)",letterSpacing:3,textTransform:"uppercase"}}>Marine Service Portal</div>
+  return(<div style={{minHeight:"100vh",background:"linear-gradient(180deg,#0d2a47,#06141f)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{background:"#fff",borderRadius:16,overflow:"hidden",maxWidth:380,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+      <div style={{background:"linear-gradient(160deg,#0d2a47,#143452)",borderBottom:"4px solid #c9832a",padding:"28px 22px",textAlign:"center"}}>
+        <div style={{fontSize:52,marginBottom:6}}>&#9875;</div>
+        <div style={{fontSize:10,color:"rgba(255,255,255,.5)",letterSpacing:3,textTransform:"uppercase"}}>Marine Service Portal</div>
       </div>
-      <div style={{padding:"20px 22px 24px"}}>
+      <div style={{padding:"22px 20px 26px"}}>
         {!sel?(<React.Fragment>
-        <div style={{textAlign:"center",fontWeight:800,fontSize:11,textTransform:"uppercase",letterSpacing:1,color:"#0d2a47",marginBottom:12}}>Select your name</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
-          {techs.map(n=><button key={n} onClick={()=>{if(pins[n]){setSel(n);setPin("");setErr("");}else onLogin(n);}} style={{background:"#0d2a47",border:"none",borderRadius:8,padding:"15px 10px",fontSize:15,fontWeight:800,color:"#fff",cursor:"pointer"}}>{n}</button>)}
+        <div style={{textAlign:"center",fontWeight:800,fontSize:13,textTransform:"uppercase",letterSpacing:1,color:"#0d2a47",marginBottom:14}}>Select your name</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          {techs.map(n=><button key={n} onClick={()=>{setSel(n);setPin("");setErr("");}} style={{background:"#0d2a47",border:"none",borderRadius:12,padding:"24px 10px",fontSize:20,fontWeight:800,color:"#fff",cursor:"pointer"}}>{n}</button>)}
         </div>
         </React.Fragment>):(<React.Fragment>
-        <div style={{textAlign:"center",fontWeight:800,fontSize:11,textTransform:"uppercase",letterSpacing:1,color:"#0d2a47",marginBottom:12}}>{sel} - Enter PIN</div>
-        <input type="password" inputMode="numeric" maxLength={4} autoFocus value={pin} onChange={e=>{setPin(e.target.value.replace(/\D/g,""));setErr("");}} onKeyDown={e=>e.key==="Enter"&&go()} style={{width:"100%",textAlign:"center",fontSize:26,fontWeight:700,letterSpacing:10,padding:"10px",border:"1px solid #d0dce8",borderRadius:8,background:"#f2f5f8",outline:"none",boxSizing:"border-box",marginBottom:10}} placeholder="...."/>
-        {err&&<div style={{color:"#9e2424",fontSize:12,fontWeight:700,textAlign:"center",marginBottom:8}}>{err}</div>}
-        <div style={{display:"flex",gap:8}}>
-          <button onClick={go} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:8,padding:"12px",fontSize:13,fontWeight:800,cursor:"pointer"}}>Sign In</button>
-          <button onClick={()=>{setSel(null);setPin("");setErr("");}} style={{background:"#e8edf2",color:"#2a3f4f",border:"none",borderRadius:8,padding:"12px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Back</button>
+        <div style={{textAlign:"center",fontWeight:800,fontSize:14,textTransform:"uppercase",letterSpacing:1,color:"#0d2a47",marginBottom:14}}>{sel} - Enter PIN</div>
+        <input type="password" inputMode="numeric" maxLength={4} autoFocus value={pin} onChange={e=>{setPin(e.target.value.replace(/\D/g,""));setErr("");}} onKeyDown={e=>e.key==="Enter"&&go()} style={{width:"100%",textAlign:"center",fontSize:32,fontWeight:700,letterSpacing:12,padding:"16px 10px",border:"1px solid #d0dce8",borderRadius:12,background:"#f2f5f8",outline:"none",boxSizing:"border-box",marginBottom:12}} placeholder="...."/>
+        {err&&<div style={{color:"#9e2424",fontSize:14,fontWeight:700,textAlign:"center",marginBottom:10}}>{err}</div>}
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={go} disabled={busy} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:12,padding:"18px",fontSize:17,fontWeight:800,cursor:"pointer",opacity:busy?.6:1}}>{busy?"...":"Sign In"}</button>
+          <button onClick={()=>{setSel(null);setPin("");setErr("");}} style={{background:"#e8edf2",color:"#2a3f4f",border:"none",borderRadius:12,padding:"18px 22px",fontSize:16,fontWeight:700,cursor:"pointer"}}>Back</button>
         </div>
         </React.Fragment>)}
       </div>
@@ -126,18 +133,12 @@ function Login({onLogin,techs,pins}){
   </div>);
 }
 
-function AdminModal({onClose,custs,cls,wos,techList,saveTechs,pins,savePin}){
+function AdminModal({onClose,custs,cls,wos,techList,saveTechs}){
   const [pin,setPin]=useState("");
   const [auth,setAuth]=useState(false);
   const [newName,setNewName]=useState("");
   const [err,setErr]=useState("");
-  const okPin=p=>p===ADMIN_PIN||(pins&&pins[ADMIN_TECH]&&p===pins[ADMIN_TECH]);
-  function setPinFor(t){
-    const p=prompt("Set 4-digit PIN for "+t+(pins[t]?" (current: "+pins[t]+")":""));
-    if(p==null)return;
-    if(p!==""&&!/^\d{4}$/.test(p)){alert("PIN must be exactly 4 digits (or blank to remove).");return;}
-    savePin(t,p);
-  }
+  const okPin=p=>p===ADMIN_PIN;
   const fi={width:"100%",background:"#f2f5f8",border:"1px solid #d0dce8",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"};
   if(!auth)return(<div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{background:"#fff",borderRadius:14,padding:24,width:"100%",maxWidth:320,textAlign:"center"}}>
@@ -170,10 +171,7 @@ function AdminModal({onClose,custs,cls,wos,techList,saveTechs,pins,savePin}){
           {t===ADMIN_TECH&&<span style={{fontSize:10,background:"#c9832a",color:"#fff",fontWeight:800,padding:"2px 7px",borderRadius:4}}>OWNER</span>}
           <span style={{fontSize:14,fontWeight:700,color:"#0d2a47"}}>{t}</span>
         </div>
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>setPinFor(t)} style={{background:pins[t]?"#135e34":"#1f6296",color:"#fff",border:"none",borderRadius:5,padding:"5px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>{pins[t]?"PIN ✓":"Set PIN"}</button>
-          {t!==ADMIN_TECH&&<button onClick={()=>{if(confirm("Remove "+t+"?"))saveTechs(techList.filter(x=>x!==t));}} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:5,padding:"5px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>Remove</button>}
-        </div>
+        {t!==ADMIN_TECH&&<button onClick={()=>{if(confirm("Remove "+t+"?"))saveTechs(techList.filter(x=>x!==t));}} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:5,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Remove</button>}
       </div>))}
       <div style={{display:"flex",gap:8,marginTop:10}}>
         <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="New tech name..." style={{...fi,flex:1}}/>
@@ -191,7 +189,6 @@ function App(){
   const [cls,setCls]=useState([]);
   const [wos,setWos]=useState([]);
   const [techList,setTechList]=useState(DEFAULT_TECHS);
-  const [techPins,setTechPins]=useState({});
   const [screen,setScreen]=useState("list");
   const [cust,setCust]=useState(null);
   const [cl,setCl]=useState(null);
@@ -203,12 +200,14 @@ function App(){
 
   useEffect(()=>{
     loadAll();
+    sb.auth.getSession().then(({data})=>{const u=data.session&&data.session.user;if(u)setTech((u.user_metadata&&u.user_metadata.name)||u.email.split("@")[0]);});
     const iv=setInterval(loadAll,12000);
     const chan=sb.channel('db-changes')
       .on('postgres_changes',{event:'*',schema:'public'},()=>loadAll())
       .subscribe();
     return()=>{clearInterval(iv);sb.removeChannel(chan);};
   },[]);
+  useEffect(()=>{if(tech)loadAll();},[tech]);
 
   async function loadAll(){
     setLoadErr("");
@@ -225,7 +224,7 @@ function App(){
       setCusts(c.data||[]);
       setCls(ch.data||[]);
       setWos(wo.data||[]);
-      if(t.data&&t.data.length>0){setTechList(t.data.map(x=>x.name));setTechPins(Object.fromEntries(t.data.map(x=>[x.name,x.pin||""])));}
+      if(t.data&&t.data.length>0)setTechList(t.data.map(x=>x.name));
     }catch(e){setLoadErr(e.message);}
     setLoading(false);
   }
@@ -279,11 +278,6 @@ function App(){
     if(error){alert('Error:\n'+error.message);return;}
     setWos(prev=>prev.filter(x=>x.id!==id));
   }
-  async function savePin(name,pin){
-    const{error}=await sb.from('techs').update({pin}).eq('name',name);
-    if(error){alert('Error saving PIN:\n'+error.message+'\n\nIf the pin column is missing, run this in the Supabase SQL editor:\nALTER TABLE techs ADD COLUMN pin text;');return;}
-    setTechPins(prev=>({...prev,[name]:pin}));
-  }
   async function saveTechs(newList){
     const toRemove=techList.filter(n=>!newList.includes(n));
     const toAdd=newList.filter(n=>!techList.includes(n));
@@ -303,14 +297,15 @@ function App(){
     <button onClick={()=>{setLoading(true);loadAll();}} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Retry</button>
   </div>);
 
-  if(!tech)return <Login onLogin={setTech} techs={techList} pins={techPins}/>;
+  if(!tech)return <Login onLogin={setTech} techs={techList}/>;
 
   function Hdr(){return(<div style={{background:"#0d2a47",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"3px solid #c9832a"}}>
     <div style={{color:"#fff",fontSize:17,fontWeight:900}}>&#9875; Service Portal</div>
     <div style={{display:"flex",gap:8,alignItems:"center"}}>
-      {tech===ADMIN_TECH&&<button onClick={()=>setAdminOpen(true)} style={{background:"#c9832a",color:"#0d2a47",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}}>Admin</button>}
-      <span style={{background:"rgba(255,255,255,.15)",color:"#fff",fontSize:10,fontWeight:800,padding:"4px 10px",borderRadius:4}}>{tech}</span>
-      <button onClick={()=>{setTech(null);setScreen("list");setCust(null);setCl(null);}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:6,padding:"6px 12px",cursor:"pointer",fontWeight:700,fontSize:11}}>Out</button>
+      {tech===ADMIN_TECH&&<button onClick={()=>setAdminOpen(true)} style={{background:"#c9832a",color:"#0d2a47",border:"none",borderRadius:8,padding:"10px 14px",fontSize:13,fontWeight:800,cursor:"pointer"}}>Admin</button>}
+      <button onClick={()=>{const p=prompt("New 4-digit PIN for "+tech);if(p==null)return;if(!/^\d{4}$/.test(p)){alert("PIN must be exactly 4 digits.");return;}sb.auth.updateUser({password:p+PSALT}).then(r=>alert(r.error?("Error: "+r.error.message):"PIN updated."));}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:8,padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13}}>PIN</button>
+      <span style={{background:"rgba(255,255,255,.15)",color:"#fff",fontSize:12,fontWeight:800,padding:"8px 12px",borderRadius:6}}>{tech}</span>
+      <button onClick={()=>{sb.auth.signOut();setTech(null);setScreen("list");setCust(null);setCl(null);}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:8,padding:"10px 14px",cursor:"pointer",fontWeight:700,fontSize:13}}>Out</button>
     </div>
   </div>);}
 
@@ -350,7 +345,7 @@ function App(){
         else{await updateCust(cust.id,f);setCust(prev=>({...prev,...f}));}
         setModal(null);
       }} onDelete={async()=>{if(!confirm("Delete customer?"))return;await deleteCust(cust.id);setModal(null);setCust(null);setScreen("list");}}/>}
-      {adminOpen&&<AdminModal onClose={()=>setAdminOpen(false)} custs={custs} cls={cls} wos={wos} techList={techList} saveTechs={saveTechs} pins={techPins} savePin={savePin}/>}
+      {adminOpen&&<AdminModal onClose={()=>setAdminOpen(false)} custs={custs} cls={cls} wos={wos} techList={techList} saveTechs={saveTechs}/>}
     </div>);
   }
 
@@ -359,7 +354,7 @@ function App(){
 
   return(<div style={{minHeight:"100vh",background:"#f0f4f8",fontFamily:"-apple-system,sans-serif"}}>
     <Hdr/>
-    <button onClick={()=>{setScreen("list");setCl(null);}} style={{width:"100%",background:"#163860",color:"#fff",border:"none",padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>Back to Customers</button>
+    <button onClick={()=>{setScreen("list");setCl(null);}} style={{width:"100%",background:"#163860",color:"#fff",border:"none",padding:"16px 14px",textAlign:"left",fontSize:14,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>&#8249; Back to Customers</button>
     <div style={{background:"#0d2a47",padding:"13px 15px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
         <div>
@@ -380,7 +375,7 @@ function App(){
       </div>
     </div>
     <div style={{display:"flex",background:"#163860",borderBottom:"2px solid #c9832a"}}>
-      {[["cl","Checklists"],["wo","Work Orders"]].map(([v,l])=>(<button key={v} onClick={()=>setCustTab(v)} style={{flex:1,background:"transparent",border:"none",borderBottom:custTab===v?"3px solid #c9832a":"3px solid transparent",marginBottom:-2,color:custTab===v?"#c9832a":"rgba(255,255,255,.45)",padding:"11px 8px",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,cursor:"pointer",fontFamily:"-apple-system,sans-serif"}}>{l}</button>))}
+      {[["cl","Checklists"],["wo","Work Orders"]].map(([v,l])=>(<button key={v} onClick={()=>setCustTab(v)} style={{flex:1,background:"transparent",border:"none",borderBottom:custTab===v?"4px solid #c9832a":"4px solid transparent",marginBottom:-2,color:custTab===v?"#c9832a":"rgba(255,255,255,.45)",padding:"18px 8px",fontSize:15,fontWeight:800,textTransform:"uppercase",letterSpacing:.5,cursor:"pointer",fontFamily:"-apple-system,sans-serif"}}>{l}</button>))}
     </div>
     {custTab==="cl"&&(<>
       <div style={{background:"#1a3a5c",padding:"8px 12px",overflowX:"auto",whiteSpace:"nowrap",borderBottom:"1px solid #2a4a6c"}}>
@@ -433,7 +428,7 @@ function App(){
     {woModal&&<WOModal wo={woModal==="add"?null:woModal} onClose={()=>setWoModal(null)}
       onSave={async f=>{if(woModal==="add"){await addWO({...mkWO(cust.id,tech),...f});}else{await updateWO(woModal.id,f);}setWoModal(null);}}
       onDelete={async()=>{if(!confirm("Delete WO?"))return;await deleteWO(woModal.id);setWoModal(null);}}/>}
-    {adminOpen&&<AdminModal onClose={()=>setAdminOpen(false)} custs={custs} cls={cls} wos={wos} techList={techList} saveTechs={saveTechs} pins={techPins} savePin={savePin}/>}
+    {adminOpen&&<AdminModal onClose={()=>setAdminOpen(false)} custs={custs} cls={cls} wos={wos} techList={techList} saveTechs={saveTechs}/>}
   </div>);
 }
 
@@ -468,10 +463,10 @@ function CLView({cl,onUpdate,onDelete}){
       <button onClick={onDelete} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:6,padding:"6px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>Delete</button>
     </div>
     <div style={{display:"flex",border:"1px solid #d0dce8",borderRadius:8,overflow:"hidden",marginBottom:12}}>
-      {[["basic","Basic","#1f6296"],["gold","Gold","#c9832a"]].map(([v,l,c])=>(<button key={v} onClick={()=>onUpdate({pkg:v})} style={{flex:1,background:cl.pkg===v?c:"#f2f5f8",color:cl.pkg===v?"#fff":"#2a3f4f",border:"none",padding:"10px",fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:1,cursor:"pointer"}}>{l}</button>))}
+      {[["basic","Basic","#1f6296"],["gold","Gold","#c9832a"]].map(([v,l,c])=>(<button key={v} onClick={()=>onUpdate({pkg:v})} style={{flex:1,background:cl.pkg===v?c:"#f2f5f8",color:cl.pkg===v?"#fff":"#2a3f4f",border:"none",padding:"16px",fontSize:14,fontWeight:800,textTransform:"uppercase",letterSpacing:1,cursor:"pointer"}}>{l}</button>))}
     </div>
     <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
-      {[["open","Open","#1f6296"],["complete","Complete","#135e34"],["attention","Attention","#9e2424"]].map(([v,l,c])=>(<button key={v} onClick={()=>onUpdate({status:v})} style={{background:cl.status===v?c:"#e8edf2",color:cl.status===v?"#fff":"#2a3f4f",border:"none",borderRadius:5,padding:"6px 12px",fontSize:10,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>{l}</button>))}
+      {[["open","Open","#1f6296"],["complete","Complete","#135e34"],["attention","Attention","#9e2424"]].map(([v,l,c])=>(<button key={v} onClick={()=>onUpdate({status:v})} style={{background:cl.status===v?c:"#e8edf2",color:cl.status===v?"#fff":"#2a3f4f",border:"none",borderRadius:7,padding:"12px 16px",fontSize:12,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>{l}</button>))}
     </div>
     <div style={{height:4,background:"#e8edf2",borderRadius:2,marginBottom:14}}><div style={{height:"100%",width:p.p+"%",borderRadius:2,background:pcol,transition:"width .3s"}}/></div>
     <div style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:8,overflow:"hidden",marginBottom:10}}>
