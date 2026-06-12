@@ -39,7 +39,7 @@ function uid(){return Date.now()+"_"+Math.random().toString(36).slice(2,5);}
 function today(){return new Date().toLocaleDateString();}
 function mkDmg(){return{condition:"",types:DMG.map(n=>({n,on:false})),notes:"",photos:[]};}
 function normSecs(secs){return CK.map(ck=>{const ex=(secs||[]).find(s=>s.s===ck.s);return ex||{s:ck.s,items:ck.i.map(n=>({n,ok:false,at:false,note:""}))}});}
-function mkCL(cid,tech){return{id:uid(),cid,date:today(),tech,status:"open",notes:"",ts:Date.now(),pkg:"basic",location:"",photos:[],damage:mkDmg(),secs:CK.map(s=>({s:s.s,items:s.i.map(n=>({n,ok:false,at:false,note:""}))}))}}
+function mkCL(cid,tech){return{id:uid(),cid,date:today(),tech,status:"open",notes:"",ts:Date.now(),pkg:"basic",location:"",photos:[],damage:mkDmg(),lub:tech,lut:Date.now(),secs:CK.map(s=>({s:s.s,items:s.i.map(n=>({n,ok:false,at:false,note:""}))}))}}
 function mkWO(cid,tech){return{id:uid(),cid,woNum:"",tech,date:today(),status:"open",desc:"",notes:"",parts:[],ts:Date.now()};}
 function prog(cl){
   let t=0,d=0;
@@ -406,6 +406,7 @@ function App(){
             <div>
               <div style={{fontSize:14,fontWeight:800,color:"#0d2a47"}}>{new Date(x.ts).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
               <div style={{fontSize:10.5,color:"#2a3f4f",marginTop:2}}>{x.tech} - {p.d}/{p.t} items - <span style={{fontWeight:800,color:x.pkg==="gold"?"#c9832a":"#1f6296",textTransform:"uppercase"}}>{x.pkg}</span></div>
+              {x.lut&&<div style={{fontSize:10,fontWeight:700,color:"#1f6296",marginTop:3}}>Last update: {new Date(x.lut).toLocaleDateString("en-US",{month:"short",day:"numeric"})}, {new Date(x.lut).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})} by {x.lub}</div>}
               <div style={{width:70,height:4,background:"#e8edf2",borderRadius:2,marginTop:5}}><div style={{height:"100%",width:p.p+"%",borderRadius:2,background:col}}/></div>
             </div>
             <span style={{fontSize:9,fontWeight:700,textTransform:"uppercase",padding:"3px 9px",borderRadius:12,color:"#fff",background:col}}>{x.status}</span>
@@ -413,7 +414,7 @@ function App(){
         })}
       </div>):(
         <CLView key={cl.id} cl={cl}
-          onUpdate={async patch=>{const u={...cl,...patch};setCl(u);setCls(prev=>prev.map(x=>x.id===u.id?u:x));await updateCL(u.id,patch);}}
+          onUpdate={async patch=>{const stamped={...patch,lub:tech,lut:Date.now()};const u={...cl,...stamped};setCl(u);setCls(prev=>prev.map(x=>x.id===u.id?u:x));await updateCL(u.id,stamped);}}
           onDelete={async()=>{if(!confirm("Delete checklist?"))return;await deleteCL(cl.id);setCl(null);setScreen("cust");}}/>
       )}
     </>)}
