@@ -367,8 +367,8 @@ function App(){
           {custTab==="wo"&&<button onClick={()=>setWoModal("add")} style={{background:"#c9832a",color:"#0d2a47",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Add WO</button>}
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",borderTop:"1px solid rgba(255,255,255,.1)",marginTop:10}}>
-        {[["Make",cust.vm],["Model",cust.vmo],["Year",cust.vy],["Slip",cust.vs]].map(([l,v])=>(<div key={l} style={{padding:"7px 8px",borderRight:"1px solid rgba(255,255,255,.1)",textAlign:"center"}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",borderTop:"1px solid rgba(255,255,255,.1)",marginTop:10}}>
+        {[["Make",cust.vm],["Model",cust.vmo],["Year",cust.vy],["Engine",cust.ve],["Color",cust.vc],["Slip",cust.vs]].map(([l,v])=>(<div key={l} style={{padding:"7px 8px",borderRight:"1px solid rgba(255,255,255,.1)",borderBottom:"1px solid rgba(255,255,255,.1)",textAlign:"center"}}>
           <div style={{fontSize:7,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"rgba(255,255,255,.35)",marginBottom:2}}>{l}</div>
           <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,.9)"}}>{v||"--"}</div>
         </div>))}
