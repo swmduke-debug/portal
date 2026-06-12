@@ -130,6 +130,7 @@ function Login({onLogin,techs}){
         </React.Fragment>)}
       </div>
     </div>
+    <div style={{position:"fixed",bottom:12,left:0,right:0,textAlign:"center",fontSize:9,color:"rgba(255,255,255,.45)",padding:"0 28px",lineHeight:1.6}}>&copy; 2026 Southwinds Marine, Cranberry Marina, Collingwood ON. Proprietary software &mdash; all rights reserved. By signing in you agree this application and its data may not be copied, sold, distributed, or used without payment to and written agreement of Southwinds Marine.</div>
   </div>);
 }
 
@@ -303,7 +304,7 @@ function App(){
     <div style={{color:"#fff",fontSize:17,fontWeight:900}}>&#9875; Service Portal</div>
     <div style={{display:"flex",gap:8,alignItems:"center"}}>
       {tech===ADMIN_TECH&&<button onClick={()=>setAdminOpen(true)} style={{background:"#c9832a",color:"#0d2a47",border:"none",borderRadius:8,padding:"10px 14px",fontSize:13,fontWeight:800,cursor:"pointer"}}>Admin</button>}
-      <button onClick={()=>{const p=prompt("New 4-digit PIN for "+tech);if(p==null)return;if(!/^\d{4}$/.test(p)){alert("PIN must be exactly 4 digits.");return;}sb.auth.updateUser({password:p+PSALT}).then(r=>alert(r.error?("Error: "+r.error.message):"PIN updated."));}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:8,padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13}}>PIN</button>
+      <button onClick={()=>{const a=prompt("Admin PIN required to change PINs");if(a==null)return;if(a!==ADMIN_PIN){alert("Only the owner can change PINs.");return;}const p=prompt("New 4-digit PIN for "+tech);if(p==null)return;if(!/^\d{4}$/.test(p)){alert("PIN must be exactly 4 digits.");return;}sb.auth.updateUser({password:p+PSALT}).then(r=>alert(r.error?("Error: "+r.error.message):"PIN updated."));}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:8,padding:"10px 12px",cursor:"pointer",fontWeight:700,fontSize:13}}>PIN</button>
       <span style={{background:"rgba(255,255,255,.15)",color:"#fff",fontSize:12,fontWeight:800,padding:"8px 12px",borderRadius:6}}>{tech}</span>
       <button onClick={()=>{sb.auth.signOut();setTech(null);setScreen("list");setCust(null);setCl(null);}} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:8,padding:"10px 14px",cursor:"pointer",fontWeight:700,fontSize:13}}>Out</button>
     </div>
