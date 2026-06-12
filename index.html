@@ -373,9 +373,13 @@ function App(){
           <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,.9)"}}>{v||"--"}</div>
         </div>))}
       </div>
+      <div style={{display:"flex",justifyContent:"center",gap:6,borderTop:"1px solid rgba(255,255,255,.1)",padding:"7px 8px"}}>
+        <span style={{fontSize:8,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"rgba(255,255,255,.35)",alignSelf:"center"}}>Hull #</span>
+        <span style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,.9)",letterSpacing:1}}>{cust.hn||"--"}</span>
+      </div>
     </div>
     <div style={{display:"flex",background:"#163860",borderBottom:"2px solid #c9832a"}}>
-      {[["cl","Checklists"],["wo","Work Orders"]].map(([v,l])=>(<button key={v} onClick={()=>setCustTab(v)} style={{flex:1,background:"transparent",border:"none",borderBottom:custTab===v?"4px solid #c9832a":"4px solid transparent",marginBottom:-2,color:custTab===v?"#c9832a":"rgba(255,255,255,.45)",padding:"18px 8px",fontSize:15,fontWeight:800,textTransform:"uppercase",letterSpacing:.5,cursor:"pointer",fontFamily:"-apple-system,sans-serif"}}>{l}</button>))}
+      {[["cl","Checklists"],["wo","Work Orders"],["tr","Trailer"]].map(([v,l])=>(<button key={v} onClick={()=>setCustTab(v)} style={{flex:1,background:"transparent",border:"none",borderBottom:custTab===v?"4px solid #c9832a":"4px solid transparent",marginBottom:-2,color:custTab===v?"#c9832a":"rgba(255,255,255,.45)",padding:"18px 8px",fontSize:15,fontWeight:800,textTransform:"uppercase",letterSpacing:.5,cursor:"pointer",fontFamily:"-apple-system,sans-serif"}}>{l}</button>))}
     </div>
     {custTab==="cl"&&(<>
       <div style={{background:"#1a3a5c",padding:"8px 12px",overflowX:"auto",whiteSpace:"nowrap",borderBottom:"1px solid #2a4a6c"}}>
@@ -421,6 +425,7 @@ function App(){
       </div>
       :myWos.map(wo=><WOCard key={wo.id} wo={wo} onEdit={setWoModal}/>)}
     </div>)}
+    {custTab==="tr"&&<TrailerPane key={cust.id} cust={cust} onSave={async t=>{await updateCust(cust.id,{trailer:t});setCust(prev=>({...prev,trailer:t}));}}/>}
     {modal&&<CustModal cust={modal==="edit"?cust:null} onClose={()=>setModal(null)} onSave={async f=>{
       if(modal==="edit"){await updateCust(cust.id,f);setCust({...cust,...f});}
       setModal(null);
@@ -531,6 +536,32 @@ function CLView({cl,onUpdate,onDelete}){
   </div>);
 }
 
+function TrailerPane({cust,onSave}){
+  const [t,setT]=useState(cust.trailer||{make:"",year:"",plate:"",color:"",hitch:"",notes:""});
+  const [saved,setSaved]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const u=(k,v)=>{setT(prev=>({...prev,[k]:v}));setSaved(false);};
+  const fi={width:"100%",background:"#f2f5f8",border:"1px solid #d0dce8",borderRadius:8,padding:"12px",fontSize:15,outline:"none",boxSizing:"border-box"};
+  const lb={fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",display:"block",marginBottom:4};
+  return(<div style={{padding:14}}>
+    <div style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:10,overflow:"hidden"}}>
+      <div style={{padding:"13px 14px",background:"#2a3f4f"}}>
+        <div style={{fontWeight:800,fontSize:14,color:"#fff"}}>&#128667; Trailer Info</div>
+      </div>
+      <div style={{padding:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+          {[["make","Make"],["year","Year"],["plate","Plate #"],["color","Color"]].map(([k,l])=>(<div key={k}><label style={lb}>{l}</label><input style={fi} value={t[k]||""} onChange={e=>u(k,e.target.value)}/></div>))}
+        </div>
+        <label style={lb}>Hitch / Ball Size</label>
+        <input style={{...fi,marginBottom:10}} value={t.hitch||""} onChange={e=>u("hitch",e.target.value)} placeholder={'e.g. 2 5/16"'}/>
+        <label style={lb}>Notes</label>
+        <textarea rows={3} style={{...fi,resize:"none",marginBottom:12}} value={t.notes||""} onChange={e=>u("notes",e.target.value)} placeholder="Storage location, condition, lights, bearings..."/>
+        <button onClick={async()=>{setSaving(true);await onSave(t);setSaving(false);setSaved(true);}} disabled={saving} style={{width:"100%",background:saved?"#135e34":"#c9832a",color:"#fff",border:"none",borderRadius:8,padding:"16px",fontSize:14,fontWeight:800,textTransform:"uppercase",cursor:"pointer",opacity:saving?.6:1}}>{saving?"Saving...":saved?"Saved ✓":"Save Trailer Info"}</button>
+      </div>
+    </div>
+  </div>);
+}
+
 function WOModal({wo,onSave,onDelete,onClose}){
   const [f,setF]=useState({woNum:wo?.woNum||"",desc:wo?.desc||"",status:wo?.status||"open",notes:wo?.notes||""});
   const [parts,setParts]=useState(wo?.parts||[]);
@@ -591,7 +622,7 @@ function WOModal({wo,onSave,onDelete,onClose}){
 }
 
 function CustModal({cust,onSave,onDelete,onClose}){
-  const [f,setF]=useState({name:cust?.name||"",ph:cust?.ph||"",em:cust?.em||"",vm:cust?.vm||"",vmo:cust?.vmo||"",vy:cust?.vy||"",ve:cust?.ve||"",vc:cust?.vc||"",vs:cust?.vs||""});
+  const [f,setF]=useState({name:cust?.name||"",ph:cust?.ph||"",em:cust?.em||"",vm:cust?.vm||"",vmo:cust?.vmo||"",vy:cust?.vy||"",ve:cust?.ve||"",vc:cust?.vc||"",vs:cust?.vs||"",hn:cust?.hn||""});
   const u=(k,v)=>setF({...f,[k]:v});
   const fi={width:"100%",background:"#f2f5f8",border:"1px solid #d0dce8",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"};
   const lb={fontSize:8,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",display:"block",marginBottom:3};
@@ -609,6 +640,10 @@ function CustModal({cust,onSave,onDelete,onClose}){
       <div style={{fontSize:9,fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#2a3f4f",margin:"10px 0 8px"}}>Vessel</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:16}}>
         {[["vm","Make"],["vmo","Model"],["vy","Year"],["ve","Engine"],["vc","Color"],["vs","Slip #"]].map(([k,l])=>(<div key={k}><label style={lb}>{l}</label><input style={fi} value={f[k]} onChange={e=>u(k,e.target.value)}/></div>))}
+      </div>
+      <div style={{marginBottom:16}}>
+        <label style={lb}>Hull Number (HIN)</label>
+        <input style={fi} value={f.hn} onChange={e=>u("hn",e.target.value)} placeholder="e.g. ABC12345D404"/>
       </div>
       <div style={{display:"flex",gap:9}}>
         <button onClick={()=>{if(!f.name){alert("Name required.");return;}onSave(f);}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 16px",fontSize:12,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>{cust?"Save":"Add Customer"}</button>
