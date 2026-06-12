@@ -536,8 +536,10 @@ function WOModal({wo,onSave,onDelete,onClose}){
   const [parts,setParts]=useState(wo?.parts||[]);
   const [partName,setPartName]=useState("");
   const [partDesc,setPartDesc]=useState("");
+  const partRef=useRef();
   const u=(k,v)=>setF({...f,[k]:v});
-  function addPart(){if(!partName.trim())return;setParts([...parts,{id:uid(),name:partName.trim(),desc:partDesc.trim(),ts:Date.now()}]);setPartName("");setPartDesc("");}
+  function addPart(){if(!partName.trim())return;setParts(prev=>[...prev,{id:uid(),name:partName.trim(),desc:partDesc.trim(),ts:Date.now()}]);setPartName("");setPartDesc("");if(partRef.current)partRef.current.focus();}
+  function allParts(){return partName.trim()?[...parts,{id:uid(),name:partName.trim(),desc:partDesc.trim(),ts:Date.now()}]:parts;}
   function delPart(id){setParts(parts.filter(p=>p.id!==id));}
   const fi={width:"100%",background:"#f2f5f8",border:"1px solid #d0dce8",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"};
   const lb={fontSize:8,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",display:"block",marginBottom:4};
@@ -563,22 +565,25 @@ function WOModal({wo,onSave,onDelete,onClose}){
           {parts.length>0&&<span style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.5)"}}>{parts.length} part{parts.length>1?"s":""}</span>}
         </div>
         {parts.length>0&&<div style={{padding:"8px 12px"}}>
-          {parts.map(p=>(<div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"8px 10px",background:"#fff",border:"1px solid #d0dce8",borderRadius:6,marginBottom:5}}>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#0d2a47"}}>{p.name}</div>
-              {p.desc&&<div style={{fontSize:11,color:"#2a3f4f",marginTop:1}}>{p.desc}</div>}
+          {parts.map((p,i)=>(<div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 12px",background:"#fff",border:"1px solid #d0dce8",borderRadius:8,marginBottom:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
+              <span style={{background:"#1a3a5c",color:"#fff",fontSize:12,fontWeight:800,borderRadius:"50%",width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:15,fontWeight:700,color:"#0d2a47"}}>{p.name}</div>
+                {p.desc&&<div style={{fontSize:12,color:"#2a3f4f",marginTop:1}}>{p.desc}</div>}
+              </div>
             </div>
-            <button onClick={()=>delPart(p.id)} style={{background:"transparent",border:"none",color:"#9e2424",cursor:"pointer",fontSize:18,flexShrink:0,padding:"0 0 0 8px",lineHeight:1}}>X</button>
+            <button onClick={()=>delPart(p.id)} style={{background:"transparent",border:"none",color:"#9e2424",cursor:"pointer",fontSize:22,flexShrink:0,padding:"4px 0 4px 12px",lineHeight:1}}>&times;</button>
           </div>))}
         </div>}
-        <div style={{padding:"10px 12px",borderTop:parts.length>0?"1px solid #eef3f7":"none",display:"flex",flexDirection:"column",gap:7}}>
-          <input value={partName} onChange={e=>setPartName(e.target.value)} placeholder="Part name *" style={fi}/>
-          <input value={partDesc} onChange={e=>setPartDesc(e.target.value)} placeholder="Description (optional)" style={fi}/>
-          <button onClick={addPart} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"9px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Add Part</button>
+        <div style={{padding:"10px 12px",borderTop:parts.length>0?"1px solid #eef3f7":"none",display:"flex",flexDirection:"column",gap:8}}>
+          <input ref={partRef} value={partName} onChange={e=>setPartName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addPart()} placeholder={"Part "+(parts.length+1)+" name"} style={{...fi,padding:"12px 12px",fontSize:15}}/>
+          <input value={partDesc} onChange={e=>setPartDesc(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addPart()} placeholder="Description (optional)" style={{...fi,padding:"12px 12px",fontSize:15}}/>
+          <button onClick={addPart} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:8,padding:"14px",fontSize:14,fontWeight:800,cursor:"pointer"}}>+ Add Part to List</button>
         </div>
       </div>
       <div style={{display:"flex",gap:9}}>
-        <button onClick={()=>{if(!f.woNum){alert("WO number required.");return;}onSave({...f,parts});}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 16px",fontSize:12,fontWeight:700,textTransform:"uppercase",cursor:"pointer"}}>{wo?"Save":"Add WO"}</button>
+        <button onClick={()=>{if(!f.woNum){alert("WO number required.");return;}onSave({...f,parts:allParts()});}} style={{flex:1,background:"#c9832a",color:"#fff",border:"none",borderRadius:8,padding:"16px",fontSize:14,fontWeight:800,textTransform:"uppercase",cursor:"pointer"}}>{wo?"Save":"Add WO"}</button>
         {wo&&<button onClick={onDelete} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:6,padding:"10px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Delete</button>}
       </div>
     </div>
