@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Portal DB Check</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+body{font-family:-apple-system,sans-serif;background:#0d2a47;color:#fff;margin:0;padding:18px;}
+h1{font-size:18px;margin:0 0 4px;}
+.sub{font-size:11px;color:rgba(255,255,255,.5);margin-bottom:18px;}
+.card{background:#fff;color:#0d2a47;border-radius:10px;padding:14px;margin-bottom:14px;}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;color:#1f6296;}
+.row{display:flex;justify-content:space-between;padding:8px 10px;background:#f0f4f8;border:1px solid #d0dce8;border-radius:6px;margin-bottom:6px;font-size:14px;font-weight:700;}
+.pin{color:#1f6296;font-family:monospace;font-size:15px;}
+.warn{background:#fff3b8;border-color:#d4a200;}
+.err{color:#9e2424;font-size:13px;font-weight:700;}
+.ok{color:#135e34;font-size:12px;font-weight:700;}
+.cnt{font-size:11px;color:#2a3f4f;margin-top:6px;}
+</style>
+</head>
+<body>
+<h1>&#9875; Portal Database Check</h1>
+<div class="sub">Read-only &mdash; this page changes nothing</div>
+<div class="card"><h2>Technicians &amp; PINs</h2><div id="techs">Loading...</div></div>
+<div class="card"><h2>Customers</h2><div id="custs">Loading...</div></div>
+<div class="card"><h2>Counts</h2><div id="counts">Loading...</div></div>
+<script>
+const sb = window.supabase.createClient('https://mkpavcxjoboiibdeeseg.supabase.co','sb_publishable_F4CSITEgMUHkZyDrVxxAig_rH06HPck');
+(async()=>{
+  try{
+    const t=await sb.from('techs').select('*');
+    const el=document.getElementById('techs');
+    if(t.error){el.innerHTML='<div class="err">Error: '+t.error.message+'</div>';}
+    else if(!t.data||t.data.length===0){el.innerHTML='<div class="err">No techs found!</div>';}
+    else{
+      const names={};t.data.forEach(x=>names[x.name]=(names[x.name]||0)+1);
+      el.innerHTML=t.data.map(x=>'<div class="row'+(names[x.name]>1?' warn':'')+'"><span>'+x.name+(names[x.name]>1?' &#9888; DUPLICATE':'')+'</span><span class="pin">PIN: '+(x.pin==null?'(empty = 0000)':x.pin)+'</span></div>').join('');
+      const dups=Object.values(names).some(n=>n>1);
+      el.innerHTML+=dups?'<div class="err">&#9888; Duplicate names found - this causes the Wrong PIN problem</div>':'<div class="ok">&#10003; No duplicates</div>';
+    }
+  }catch(e){document.getElementById('techs').innerHTML='<div class="err">'+e.message+'</div>';}
+  try{
+    const c=await sb.from('customers').select('id,name');
+    const el=document.getElementById('custs');
+    if(c.error){el.innerHTML='<div class="err">Error: '+c.error.message+'</div>';}
+    else if(!c.data||c.data.length===0){el.innerHTML='<div class="err">No customers in database</div>';}
+    else{el.innerHTML=c.data.map(x=>'<div class="row"><span>'+x.name+'</span></div>').join('')+'<div class="ok">&#10003; '+c.data.length+' customer(s) safe in the database</div>';}
+  }catch(e){document.getElementById('custs').innerHTML='<div class="err">'+e.message+'</div>';}
+  try{
+    const [cl,wo]=await Promise.all([sb.from('checklists').select('id'),sb.from('workorders').select('id')]);
+    document.getElementById('counts').innerHTML='<div class="cnt">Checklists: '+((cl.data||[]).length)+' &nbsp;|&nbsp; Work orders: '+((wo.data||[]).length)+'</div>';
+  }catch(e){document.getElementById('counts').innerHTML='<div class="err">'+e.message+'</div>';}
+})();
+</script>
+</body>
+</html>
