@@ -28,6 +28,7 @@ const LOCS = ["Marina","Yard 1","Yard 2","Rack","Offsite"];
 const DMG = ["Gel Coat","Hull Crack","Rub Rail","Canvas/Cover","Upholstery","Mechanical","Electrical","Other"];
 const SEC_COLS = ["#0d2a47","#7a4010","#1e5f8a","#1a5a3a"];
 const WO_STATUS = {open:"#1f6296","in progress":"#2d7db5",complete:"#135e34"};
+const EST_STATUS = {draft:"#555e68",pending:"#1f6296",approved:"#135e34",declined:"#9e2424",invoiced:"#c9832a"};
 const GOLD_ONLY = ["Mechanical","Systems"];
 const CK = [
   {s:"Launch",i:["Engine Plugs & Hoses","Connect Batteries","Fluid Levels","Hull Plug","Bilge / Leak Check","Start & Run Engine","Bumpers & Lines","Shorepower Cord","Battery Switch - Off","Key to Office"]},
@@ -42,6 +43,50 @@ function mkDmg(){return{condition:"",types:DMG.map(n=>({n,on:false})),notes:"",p
 function normSecs(secs){return CK.map(ck=>{const ex=(secs||[]).find(s=>s.s===ck.s);return ex||{s:ck.s,items:ck.i.map(n=>({n,ok:false,at:false,note:""}))}});}
 function mkCL(cid,tech){return{id:uid(),cid,date:today(),tech,status:"open",notes:"",ts:Date.now(),pkg:"basic",location:"",photos:[],damage:mkDmg(),lub:tech,lut:Date.now(),secs:CK.map(s=>({s:s.s,items:s.i.map(n=>({n,ok:false,at:false,note:""}))}))}}
 function mkWO(cid,tech){return{id:uid(),cid,woNum:"",tech,date:today(),status:"open",desc:"",notes:"",parts:[],ts:Date.now(),lub:tech,lut:Date.now()};}
+function emailEst(est){
+  const partsSub=(est.parts||[]).reduce((s,p)=>s+(parseFloat(p.qty)||0)*(parseFloat(p.price)||0),0);
+  const labourSub=(est.labour||[]).reduce((s,l)=>s+(parseFloat(l.hours)||0)*(parseFloat(l.rate)||0),0);
+  const taxAmt=(partsSub+labourSub)*(parseFloat(est.taxRate)||0)/100;
+  const grand=partsSub+labourSub+taxAmt;
+  const partsLines=(est.parts||[]).map(p=>"  "+(p.partNum?"["+p.partNum+"] ":"")+p.desc+" | Qty: "+p.qty+" x $"+parseFloat(p.price||0).toFixed(2)+" = $"+((parseFloat(p.qty)||0)*(parseFloat(p.price)||0)).toFixed(2));
+  const labourLines=(est.labour||[]).map(l=>"  "+l.desc+" | "+l.hours+"h x $"+parseFloat(l.rate||0).toFixed(2)+"/hr = $"+((parseFloat(l.hours)||0)*(parseFloat(l.rate)||0)).toFixed(2));
+  const vesselLine=[est.vesselMake,est.vesselModel,est.vesselYear].filter(Boolean).join(" ")||"--";
+  const lines=[
+    "MARINE SERVICE ESTIMATE","=======================",
+    "EST#: "+(est.estNum||"--"),
+    "Date: "+est.date,"Valid Until: "+est.validUntil,
+    "Status: "+est.status.toUpperCase(),"",
+    "CUSTOMER","--------",
+    est.custName||"",
+    est.custPhone||"",est.custEmail||"","",
+    "VESSEL","------",vesselLine,
+    est.vesselEngine?"Engine: "+est.vesselEngine:"",
+    est.vesselSlip?"Slip: "+est.vesselSlip:"","",
+  ];
+  if(partsLines.length>0){lines.push("PARTS","-----",...partsLines,"");}
+  if(labourLines.length>0){lines.push("LABOUR","------",...labourLines,"");}
+  lines.push(
+    "==============================",
+    "Parts Subtotal:  $"+partsSub.toFixed(2),
+    "Labour Subtotal: $"+labourSub.toFixed(2),
+    "Tax ("+est.taxRate+"%):        $"+taxAmt.toFixed(2),
+    "GRAND TOTAL:     $"+grand.toFixed(2),
+  );
+  if(est.notes){lines.push("","NOTES","-----",est.notes);}
+  const subject=encodeURIComponent("Estimate "+(est.estNum||"--")+" - "+(est.custName||"Customer"));
+  const body=encodeURIComponent(lines.filter(l=>l!==undefined).join("\n"));
+  window.location.href="mailto:service@southwinds.com?subject="+subject+"&body="+body;
+}
+
+function mkEst(cid,custObj){
+  const d=new Date();d.setDate(d.getDate()+30);
+  const validUntil=d.toLocaleDateString();
+  return{id:uid(),cid,estNum:"",date:today(),validUntil,status:"draft",
+    custName:custObj.name||"",custPhone:custObj.ph||"",custEmail:custObj.em||"",
+    vesselMake:custObj.vm||"",vesselModel:custObj.vmo||"",vesselYear:custObj.vy||"",
+    vesselEngine:custObj.ve||"",vesselSlip:custObj.vs||"",
+    parts:[],labour:[],taxRate:15,notes:"",ts:Date.now()};
+}
 function prog(cl){
   let t=0,d=0;
   normSecs(cl.secs).forEach(s=>{
@@ -93,6 +138,220 @@ function WOCard({wo,onEdit}){
       </div>)}
       <button onClick={e=>{e.stopPropagation();onEdit(wo);}} style={{background:"#163860",color:"#fff",border:"none",borderRadius:6,padding:"7px 14px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Edit WO</button>
     </div>)}
+  </div>);
+}
+
+function EstCard({est,onEdit}){
+  const [open,setOpen]=useState(false);
+  const col=EST_STATUS[est.status]||EST_STATUS.draft;
+  const partsSub=(est.parts||[]).reduce((s,p)=>s+(parseFloat(p.qty)||0)*(parseFloat(p.price)||0),0);
+  const labourSub=(est.labour||[]).reduce((s,l)=>s+(parseFloat(l.hours)||0)*(parseFloat(l.rate)||0),0);
+  const taxAmt=(partsSub+labourSub)*(parseFloat(est.taxRate)||0)/100;
+  const grand=partsSub+labourSub+taxAmt;
+  return(<div style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:8,marginBottom:8,overflow:"hidden"}}>
+    <div onClick={()=>setOpen(!open)} style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <span style={{fontSize:16,fontWeight:900,color:"#c9832a"}}>EST# {est.estNum||"--"}</span>
+          <span style={{fontSize:9,fontWeight:700,textTransform:"uppercase",padding:"2px 8px",borderRadius:10,color:"#fff",background:col}}>{est.status}</span>
+        </div>
+        {est.notes&&<div style={{fontSize:13,fontWeight:700,color:"#0d2a47",marginTop:3}}>{est.notes}</div>}
+        <div style={{fontSize:10.5,color:"#2a3f4f",marginTop:2}}>Created: {est.date} &mdash; Valid: {est.validUntil}</div>
+        <div style={{fontSize:12,fontWeight:800,color:"#c9832a",marginTop:3}}>Total: ${grand.toFixed(2)}</div>
+      </div>
+      <span style={{fontSize:13,color:"#2a3f4f",marginLeft:10,display:"inline-block",transform:open?"rotate(90deg)":"rotate(0deg)",transition:"transform .2s",flexShrink:0}}>&#9658;</span>
+    </div>
+    {open&&(<div style={{padding:"10px 14px 14px",borderTop:"1px solid #eef3f7",background:"#fafcfe"}}>
+      {(est.parts||[]).length>0&&(<div style={{marginBottom:10}}>
+        <div style={{fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",marginBottom:6}}>Parts &mdash; ${partsSub.toFixed(2)}</div>
+        {(est.parts||[]).map(p=>(<div key={p.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",background:"#f0f4f8",border:"1px solid #d0dce8",borderRadius:6,marginBottom:4}}>
+          <div>
+            {p.partNum&&<span style={{fontSize:10,color:"#888",marginRight:6}}>[{p.partNum}]</span>}
+            <span style={{fontSize:13,fontWeight:700,color:"#0d2a47"}}>{p.desc||"(no desc)"}</span>
+          </div>
+          <div style={{fontSize:11,color:"#2a3f4f",flexShrink:0,marginLeft:8}}>{p.qty} &times; ${parseFloat(p.price||0).toFixed(2)}</div>
+        </div>))}
+      </div>)}
+      {(est.labour||[]).length>0&&(<div style={{marginBottom:10}}>
+        <div style={{fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",marginBottom:6}}>Labour &mdash; ${labourSub.toFixed(2)}</div>
+        {(est.labour||[]).map(l=>(<div key={l.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 10px",background:"#f0f4f8",border:"1px solid #d0dce8",borderRadius:6,marginBottom:4}}>
+          <span style={{fontSize:13,fontWeight:700,color:"#0d2a47"}}>{l.desc||"(no desc)"}</span>
+          <div style={{fontSize:11,color:"#2a3f4f",flexShrink:0,marginLeft:8}}>{l.hours}h &times; ${parseFloat(l.rate||0).toFixed(2)}</div>
+        </div>))}
+      </div>)}
+      {parseFloat(est.taxRate)>0&&<div style={{fontSize:11,color:"#2a3f4f",marginBottom:4}}>Tax ({est.taxRate}%): ${taxAmt.toFixed(2)}</div>}
+      <div style={{fontSize:14,fontWeight:800,color:"#c9832a",marginBottom:10}}>Grand Total: ${grand.toFixed(2)}</div>
+      <div style={{display:"flex",gap:8}}>
+        <button onClick={e=>{e.stopPropagation();onEdit(est);}} style={{background:"#163860",color:"#fff",border:"none",borderRadius:6,padding:"7px 14px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Edit Estimate</button>
+        <button onClick={e=>{e.stopPropagation();emailEst(est);}} style={{background:"#135e34",color:"#fff",border:"none",borderRadius:6,padding:"7px 14px",fontSize:11,fontWeight:700,cursor:"pointer"}}>&#9993; Email to Service</button>
+      </div>
+    </div>)}
+  </div>);
+}
+
+function EstModal({est,cust,onSave,onDelete,onClose}){
+  const d30=new Date();d30.setDate(d30.getDate()+30);
+  const [f,setF]=useState({
+    estNum:est?.estNum||"",
+    status:est?.status||"draft",
+    taxRate:est?.taxRate??15,
+    notes:est?.notes||"",
+    validUntil:est?.validUntil||d30.toLocaleDateString(),
+  });
+  const [parts,setParts]=useState(est?.parts||[]);
+  const [labour,setLabour]=useState(est?.labour||[]);
+  const u=(k,v)=>setF(prev=>({...prev,[k]:v}));
+  const partsSub=parts.reduce((s,p)=>s+(parseFloat(p.qty)||0)*(parseFloat(p.price)||0),0);
+  const labourSub=labour.reduce((s,l)=>s+(parseFloat(l.hours)||0)*(parseFloat(l.rate)||0),0);
+  const taxAmt=(partsSub+labourSub)*(parseFloat(f.taxRate)||0)/100;
+  const grand=partsSub+labourSub+taxAmt;
+  function addPart(){setParts(prev=>[...prev,{id:uid(),partNum:"",desc:"",qty:"1",price:"0.00"}]);}
+  function delPart(id){setParts(prev=>prev.filter(p=>p.id!==id));}
+  function updPart(id,k,v){setParts(prev=>prev.map(p=>p.id===id?{...p,[k]:v}:p));}
+  function addLabour(){setLabour(prev=>[...prev,{id:uid(),desc:"",hours:"1",rate:"0.00"}]);}
+  function delLabour(id){setLabour(prev=>prev.filter(l=>l.id!==id));}
+  function updLabour(id,k,v){setLabour(prev=>prev.map(l=>l.id===id?{...l,[k]:v}:l));}
+  const fi={width:"100%",background:"#f2f5f8",border:"1px solid #d0dce8",borderRadius:6,padding:"8px 10px",fontSize:13,outline:"none",boxSizing:"border-box"};
+  const lb={fontSize:8,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",display:"block",marginBottom:3};
+  return(<div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+    <div style={{background:"#fff",borderRadius:"14px 14px 0 0",width:"100%",maxHeight:"90vh",overflowY:"auto",padding:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,paddingBottom:10,borderBottom:"1px solid #d0dce8"}}>
+        <div style={{fontSize:16,fontWeight:800,color:"#0d2a47"}}>{est?"Edit Estimate":"New Estimate"}</div>
+        <button onClick={onClose} style={{background:"transparent",border:"none",fontSize:22,color:"#999",cursor:"pointer"}}>&#10005;</button>
+      </div>
+      <div style={{background:"#f0f4f8",border:"1px solid #d0dce8",borderRadius:8,padding:"10px 12px",marginBottom:12}}>
+        <div style={{fontSize:9,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:"#2a3f4f",marginBottom:5}}>Customer Info</div>
+        <div style={{fontSize:14,fontWeight:800,color:"#0d2a47"}}>{cust.name}</div>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:2}}>
+          {cust.ph&&<span style={{fontSize:12,color:"#2a3f4f"}}>{cust.ph}</span>}
+          {cust.em&&<span style={{fontSize:12,color:"#2a3f4f"}}>{cust.em}</span>}
+        </div>
+        {(cust.vm||cust.vmo||cust.vy||cust.ve)&&<div style={{fontSize:12,fontWeight:700,color:"#1f6296",marginTop:4}}>
+          {[cust.vm,cust.vmo,cust.vy].filter(Boolean).join(" ")}
+          {cust.ve?" — "+cust.ve:""}
+          {cust.vs?" — Slip "+cust.vs:""}
+        </div>}
+      </div>
+      <label style={lb}>Estimate Number</label>
+      <input style={{...fi,marginBottom:12,fontSize:18,fontWeight:800,color:"#c9832a"}} value={f.estNum} onChange={e=>u("estNum",e.target.value)} placeholder="e.g. EST-0001"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:12}}>
+        <div>
+          <label style={lb}>Date</label>
+          <div style={{...fi,background:"#e8edf2",color:"#555"}}>{est?.date||today()}</div>
+        </div>
+        <div>
+          <label style={lb}>Valid Until</label>
+          <input style={fi} value={f.validUntil} onChange={e=>u("validUntil",e.target.value)}/>
+        </div>
+      </div>
+      <label style={lb}>Status</label>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+        {Object.entries(EST_STATUS).map(([v,c])=>(<button key={v} onClick={()=>u("status",v)} style={{background:f.status===v?c:"#f2f5f8",color:f.status===v?"#fff":"#2a3f4f",border:"1px solid "+(f.status===v?c:"#d0dce8"),borderRadius:6,padding:"7px 12px",fontSize:11,fontWeight:700,textTransform:"capitalize",cursor:"pointer"}}>{v}</button>))}
+      </div>
+      <div style={{background:"#f8fafb",border:"1px solid #d0dce8",borderRadius:8,overflow:"hidden",marginBottom:12}}>
+        <div style={{padding:"9px 12px",background:"#1a3a5c",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>Parts</div>
+          <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            {parts.length>0&&<span style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.7)"}}>${partsSub.toFixed(2)}</span>}
+            <button onClick={addPart} style={{background:"#2d7db5",color:"#fff",border:"none",borderRadius:5,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Add</button>
+          </div>
+        </div>
+        {parts.length===0&&<div style={{padding:"12px",textAlign:"center",fontSize:12,color:"#888"}}>No parts added</div>}
+        {parts.length>0&&<div style={{padding:"8px 10px"}}>
+          {parts.map(p=>(<div key={p.id} style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:7,padding:"9px 10px",marginBottom:6}}>
+            <div style={{display:"flex",gap:7,marginBottom:7}}>
+              <div style={{flex:"0 0 80px"}}>
+                <div style={{fontSize:7,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#2a3f4f",marginBottom:2}}>Part #</div>
+                <input style={{...fi,fontSize:12,padding:"6px 8px"}} value={p.partNum} onChange={e=>updPart(p.id,"partNum",e.target.value)} placeholder="Optional"/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:7,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#2a3f4f",marginBottom:2}}>Description</div>
+                <input style={{...fi,fontSize:12,padding:"6px 8px"}} value={p.desc} onChange={e=>updPart(p.id,"desc",e.target.value)} placeholder="Part description"/>
+              </div>
+              <button onClick={()=>delPart(p.id)} style={{background:"transparent",border:"none",color:"#9e2424",cursor:"pointer",fontSize:20,alignSelf:"flex-end",padding:"2px 0 2px 4px",lineHeight:1}}>&times;</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7}}>
+              <div>
+                <div style={{fontSize:7,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#2a3f4f",marginBottom:2}}>Qty</div>
+                <input type="number" style={{...fi,fontSize:13,padding:"6px 8px"}} value={p.qty} onChange={e=>updPart(p.id,"qty",e.target.value)} min="0" step="1"/>
+              </div>
+              <div>
+                <div style={{fontSize:7,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#2a3f4f",marginBottom:2}}>Unit Price</div>
+                <input type="number" style={{...fi,fontSize:13,padding:"6px 8px"}} value={p.price} onChange={e=>updPart(p.id,"price",e.target.value)} min="0" step="0.01"/>
+              </div>
+              <div>
+                <div style={{fontSize:7,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#2a3f4f",marginBottom:2}}>Total</div>
+                <div style={{...fi,background:"#e8edf2",fontSize:13,fontWeight:700,color:"#0d2a47",padding:"6px 8px"}}>${((parseFloat(p.qty)||0)*(parseFloat(p.price)||0)).toFixed(2)}</div>
+              </div>
+            </div>
+          </div>))}
+        </div>}
+      </div>
+      <div style={{background:"#f8fafb",border:"1px solid #d0dce8",borderRadius:8,overflow:"hidden",marginBottom:12}}>
+        <div style={{padding:"9px 12px",background:"#2a3f4f",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>Labour</div>
+          <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            {labour.length>0&&<span style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,.7)"}}>${labourSub.toFixed(2)}</span>}
+            <button onClick={addLabour} style={{background:"#2d7db5",color:"#fff",border:"none",borderRadius:5,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Add</button>
+          </div>
+        </div>
+        {labour.length===0&&<div style={{padding:"12px",textAlign:"center",fontSize:12,color:"#888"}}>No labour added</div>}
+        {labour.length>0&&<div style={{padding:"8px 10px"}}>
+          {labour.map(l=>(<div key={l.id} style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:7,padding:"9px 10px",marginBottom:6}}>
+            <div style={{display:"flex",gap:7,marginBottom:7}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:7,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#2a3f4f",marginBottom:2}}>Task Description</div>
+                <input style={{...fi,fontSize:12,padding:"6px 8px"}} value={l.desc} onChange={e=>updLabour(l.id,"desc",e.target.value)} placeholder="Describe the work"/>
+              </div>
+              <button onClick={()=>delLabour(l.id)} style={{background:"transparent",border:"none",color:"#9e2424",cursor:"pointer",fontSize:20,alignSelf:"flex-end",padding:"2px 0 2px 4px",lineHeight:1}}>&times;</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7}}>
+              <div>
+                <div style={{fontSize:7,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#2a3f4f",marginBottom:2}}>Hours</div>
+                <input type="number" style={{...fi,fontSize:13,padding:"6px 8px"}} value={l.hours} onChange={e=>updLabour(l.id,"hours",e.target.value)} min="0" step="0.5"/>
+              </div>
+              <div>
+                <div style={{fontSize:7,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#2a3f4f",marginBottom:2}}>Rate/hr</div>
+                <input type="number" style={{...fi,fontSize:13,padding:"6px 8px"}} value={l.rate} onChange={e=>updLabour(l.id,"rate",e.target.value)} min="0" step="0.01"/>
+              </div>
+              <div>
+                <div style={{fontSize:7,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#2a3f4f",marginBottom:2}}>Total</div>
+                <div style={{...fi,background:"#e8edf2",fontSize:13,fontWeight:700,color:"#0d2a47",padding:"6px 8px"}}>${((parseFloat(l.hours)||0)*(parseFloat(l.rate)||0)).toFixed(2)}</div>
+              </div>
+            </div>
+          </div>))}
+        </div>}
+      </div>
+      <div style={{background:"#f0f4f8",border:"1px solid #d0dce8",borderRadius:8,padding:"12px 14px",marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+          <span style={{fontSize:12,color:"#2a3f4f"}}>Parts Subtotal</span>
+          <span style={{fontSize:12,fontWeight:700,color:"#0d2a47"}}>${partsSub.toFixed(2)}</span>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+          <span style={{fontSize:12,color:"#2a3f4f"}}>Labour Subtotal</span>
+          <span style={{fontSize:12,fontWeight:700,color:"#0d2a47"}}>${labourSub.toFixed(2)}</span>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,paddingTop:6,borderTop:"1px solid #d0dce8"}}>
+          <div style={{display:"flex",alignItems:"center",gap:5}}>
+            <span style={{fontSize:12,color:"#2a3f4f"}}>Tax</span>
+            <input type="number" value={f.taxRate} onChange={e=>u("taxRate",e.target.value)} style={{width:44,background:"#fff",border:"1px solid #d0dce8",borderRadius:4,padding:"3px 6px",fontSize:12,textAlign:"center",outline:"none"}} min="0" max="100"/>
+            <span style={{fontSize:12,color:"#2a3f4f"}}>%</span>
+          </div>
+          <span style={{fontSize:12,fontWeight:700,color:"#0d2a47"}}>${taxAmt.toFixed(2)}</span>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0 2px",borderTop:"2px solid #0d2a47"}}>
+          <span style={{fontSize:15,fontWeight:900,color:"#0d2a47"}}>Grand Total</span>
+          <span style={{fontSize:15,fontWeight:900,color:"#c9832a"}}>${grand.toFixed(2)}</span>
+        </div>
+      </div>
+      <label style={lb}>Notes</label>
+      <textarea rows={3} style={{...fi,resize:"none",marginBottom:14}} value={f.notes} onChange={e=>u("notes",e.target.value)} placeholder="Additional notes or description..."/>
+      <div style={{display:"flex",gap:9}}>
+        <button onClick={()=>onSave({...f,parts,labour,grand})} style={{flex:1,background:"#2d7db5",color:"#fff",border:"none",borderRadius:8,padding:"16px",fontSize:14,fontWeight:800,textTransform:"uppercase",cursor:"pointer"}}>{est?"Save":"Create Estimate"}</button>
+        {est&&<button onClick={()=>emailEst({...est,...f,parts,labour})} style={{background:"#135e34",color:"#fff",border:"none",borderRadius:6,padding:"10px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>&#9993; Email</button>}
+        {est&&<button onClick={onDelete} style={{background:"#9e2424",color:"#fff",border:"none",borderRadius:6,padding:"10px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Delete</button>}
+      </div>
+    </div>
   </div>);
 }
 
@@ -199,8 +458,11 @@ function App(){
   const [custTab,setCustTab]=useState("cl");
   const [modal,setModal]=useState(null);
   const [woModal,setWoModal]=useState(null);
+  const [estModal,setEstModal]=useState(null);
   const [adminOpen,setAdminOpen]=useState(false);
   const [search,setSearch]=useState("");
+  const [ests,setEsts]=useState(()=>{try{return JSON.parse(localStorage.getItem("sw_est")||"[]");}catch(e){return [];}});
+  function saveEsts(n){setEsts(n);try{localStorage.setItem("sw_est",JSON.stringify(n));}catch(e){}}
 
   useEffect(()=>{
     loadAll();
@@ -251,6 +513,7 @@ function App(){
     setCusts(prev=>prev.filter(c=>c.id!==id));
     setCls(prev=>prev.filter(x=>x.cid!==id));
     setWos(prev=>prev.filter(x=>x.cid!==id));
+    saveEsts(ests.filter(x=>x.cid!==id));
   }
   async function addCL(data){
     const{data:d,error}=await sb.from('checklists').insert(data).select().single();
@@ -331,6 +594,7 @@ function App(){
         {fl.map(c=>{
           const nc=cls.filter(x=>x.cid===c.id).length;
           const nw=wos.filter(x=>x.cid===c.id).length;
+          const ne=ests.filter(x=>x.cid===c.id).length;
           return(<div key={c.id} onClick={()=>{setCust(c);setCl(null);setCustTab("cl");setScreen("cust");}} style={{background:"#fff",border:"1px solid #d0dce8",borderRadius:8,padding:"12px 14px",marginBottom:8,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 1px 4px rgba(10,25,50,.04)"}}>
             <div>
               <div style={{fontSize:15,fontWeight:800,color:"#0d2a47"}}>{c.name}</div>
@@ -338,6 +602,7 @@ function App(){
               <div style={{display:"flex",gap:8,marginTop:3}}>
                 {nc>0&&<span style={{fontSize:10,fontWeight:700,color:"#1f6296"}}>{nc} checklist{nc>1?"s":""}</span>}
                 {nw>0&&<span style={{fontSize:10,fontWeight:700,color:"#2d7db5"}}>{nw} WO{nw>1?"s":""}</span>}
+                {ne>0&&<span style={{fontSize:10,fontWeight:700,color:"#c9832a"}}>{ne} est{ne>1?"s":""}</span>}
               </div>
             </div>
             <div style={{fontSize:22,color:"#2d7db5"}}>&#8250;</div>
@@ -355,6 +620,7 @@ function App(){
 
   const myCls=[...cls.filter(x=>x.cid===cust.id)].sort((a,b)=>b.ts-a.ts);
   const myWos=[...wos.filter(x=>x.cid===cust.id)].sort((a,b)=>b.ts-a.ts);
+  const myEsts=[...ests.filter(x=>x.cid===cust.id)].sort((a,b)=>b.ts-a.ts);
 
   return(<div style={{minHeight:"100vh",background:"#f0f4f8",fontFamily:"-apple-system,sans-serif"}}>
     <Hdr/>
@@ -369,6 +635,7 @@ function App(){
           <button onClick={()=>setModal("edit")} style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Edit</button>
           {custTab==="cl"&&<button onClick={async()=>{const x=mkCL(cust.id,tech);const d=await addCL(x);if(d){setCl(d);setScreen("cl");}}} style={{background:"#2d7db5",color:"#0d2a47",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ New</button>}
           {custTab==="wo"&&<button onClick={()=>setWoModal("add")} style={{background:"#2d7db5",color:"#0d2a47",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ Add WO</button>}
+          {custTab==="est"&&<button onClick={()=>setEstModal("add")} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>+ New Est</button>}
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",borderTop:"1px solid rgba(255,255,255,.1)",marginTop:10}}>
@@ -383,7 +650,7 @@ function App(){
       </div>
     </div>
     <div style={{display:"flex",background:"#163860",borderBottom:"2px solid #2d7db5"}}>
-      {[["cl","Checklists"],["wo","Work Orders"],["tr","Trailer"]].map(([v,l])=>(<button key={v} onClick={()=>setCustTab(v)} style={{flex:1,background:"transparent",border:"none",borderBottom:custTab===v?"4px solid #2d7db5":"4px solid transparent",marginBottom:-2,color:custTab===v?"#2d7db5":"rgba(255,255,255,.45)",padding:"18px 8px",fontSize:15,fontWeight:800,textTransform:"uppercase",letterSpacing:.5,cursor:"pointer",fontFamily:"-apple-system,sans-serif"}}>{l}</button>))}
+      {[["cl","Checklists"],["wo","Work Orders"],["est","Estimates"],["tr","Trailer"]].map(([v,l])=>(<button key={v} onClick={()=>setCustTab(v)} style={{flex:1,background:"transparent",border:"none",borderBottom:custTab===v?"4px solid #2d7db5":"4px solid transparent",marginBottom:-2,color:custTab===v?"#2d7db5":"rgba(255,255,255,.45)",padding:"18px 4px",fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:.5,cursor:"pointer",fontFamily:"-apple-system,sans-serif"}}>{l}</button>))}
     </div>
     {custTab==="cl"&&(<>
       <div style={{background:"#1a3a5c",padding:"8px 12px",overflowX:"auto",whiteSpace:"nowrap",borderBottom:"1px solid #2a4a6c"}}>
@@ -430,6 +697,14 @@ function App(){
       </div>
       :myWos.map(wo=><WOCard key={wo.id} wo={wo} onEdit={setWoModal}/>)}
     </div>)}
+    {custTab==="est"&&(<div style={{padding:14}}>
+      {myEsts.length===0?<div style={{textAlign:"center",padding:"32px 16px"}}>
+        <div style={{fontSize:34,opacity:.15,marginBottom:8}}>&#128196;</div>
+        <div style={{fontSize:14,fontWeight:800,color:"#0d2a47",marginBottom:10}}>No estimates yet</div>
+        <button onClick={()=>setEstModal("add")} style={{background:"#c9832a",color:"#fff",border:"none",borderRadius:6,padding:"10px 18px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ New Estimate</button>
+      </div>
+      :myEsts.map(est=><EstCard key={est.id} est={est} onEdit={setEstModal}/>)}
+    </div>)}
     {custTab==="tr"&&<TrailerPane key={cust.id} cust={cust} onSave={async t=>{await updateCust(cust.id,{trailer:t});setCust(prev=>({...prev,trailer:t}));}}/>}
     {modal&&<CustModal cust={modal==="edit"?cust:null} onClose={()=>setModal(null)} onSave={async f=>{
       if(modal==="edit"){await updateCust(cust.id,f);setCust({...cust,...f});}
@@ -438,6 +713,24 @@ function App(){
     {woModal&&<WOModal wo={woModal==="add"?null:woModal} onClose={()=>setWoModal(null)}
       onSave={async f=>{const stamped={...f,lub:tech,lut:Date.now()};if(woModal==="add"){await addWO({...mkWO(cust.id,tech),...stamped});}else{await updateWO(woModal.id,stamped);}setWoModal(null);}}
       onDelete={async()=>{if(!confirm("Delete WO?"))return;await deleteWO(woModal.id);setWoModal(null);}}/>}
+    {estModal&&<EstModal
+      est={estModal==="add"?null:estModal}
+      cust={cust}
+      onClose={()=>setEstModal(null)}
+      onSave={f=>{
+        if(estModal==="add"){
+          const base=mkEst(cust.id,cust);
+          saveEsts([{...base,...f},...ests]);
+        }else{
+          saveEsts(ests.map(x=>x.id===estModal.id?{...x,...f}:x));
+        }
+        setEstModal(null);
+      }}
+      onDelete={()=>{
+        if(!confirm("Delete estimate?"))return;
+        saveEsts(ests.filter(x=>x.id!==estModal.id));
+        setEstModal(null);
+      }}/>}
     {adminOpen&&<AdminModal onClose={()=>setAdminOpen(false)} custs={custs} cls={cls} wos={wos} techList={techList} saveTechs={saveTechs}/>}
   </div>);
 }
@@ -454,7 +747,7 @@ function CLView({cl,onUpdate,onDelete}){
   function tog(k){setOpen(prev=>({...prev,[k]:!prev[k]}));}
   function togItem(si,ii,type){const next=secs.map((s,s2)=>s2!==si?s:{...s,items:s.items.map((it,i2)=>i2!==ii?it:type==="ok"?{...it,ok:!it.ok,at:false}:type==="hl"?{...it,hl:!it.hl}:{...it,at:!it.at,ok:false})});onUpdate({secs:next});}
   function setNote(si,ii,v){const next=secs.map((s,s2)=>s2!==si?s:{...s,items:s.items.map((it,i2)=>i2!==ii?it:{...it,note:v})});onUpdate({secs:next});}
-  function addPhoto(file,isDmg){if(!file)return;resizeImg(file,data=>{if(isDmg){onUpdate({damage:{...dmg,photos:[...(dmg.photos||[]),data]}});}else{onUpdate({photos:[...(cl.photos||[]),data]});}})}
+  function addPhoto(file,isDmg){if(!file)return;resizeImg(file,data=>{if(isDmg){onUpdate({damage:{...dmg,photos:[...(dmg.photos||[]),data]}});}else{onUpdate({photos:[...(cl.photos||[]),data]});}});}
   function delPhoto(i,isDmg){if(isDmg){const ph=[...(dmg.photos||[])];ph.splice(i,1);onUpdate({damage:{...dmg,photos:ph}});}else{const ph=[...(cl.photos||[])];ph.splice(i,1);onUpdate({photos:ph});}}
   function PGrid({photos,isDmg,rr,bc}){return(<div style={{padding:"12px 13px"}}>
     <input type="file" accept="image/*" ref={rr} style={{display:"none"}} onChange={e=>{addPhoto(e.target.files[0],isDmg);e.target.value="";}}/>
@@ -564,7 +857,7 @@ function TrailerPane({cust,onSave}){
         <input style={{...fi,marginBottom:10}} value={t.hitch||""} onChange={e=>u("hitch",e.target.value)} placeholder={'e.g. 2 5/16"'}/>
         <label style={lb}>Notes</label>
         <textarea rows={3} style={{...fi,resize:"none",marginBottom:12}} value={t.notes||""} onChange={e=>u("notes",e.target.value)} placeholder="Storage location, condition, lights, bearings..."/>
-        <button onClick={async()=>{setSaving(true);await onSave(t);setSaving(false);setSaved(true);}} disabled={saving} style={{width:"100%",background:saved?"#135e34":"#2d7db5",color:"#fff",border:"none",borderRadius:8,padding:"16px",fontSize:14,fontWeight:800,textTransform:"uppercase",cursor:"pointer",opacity:saving?.6:1}}>{saving?"Saving...":saved?"Saved ✓":"Save Trailer Info"}</button>
+        <button onClick={async()=>{setSaving(true);await onSave(t);setSaving(false);setSaved(true);}} disabled={saving} style={{width:"100%",background:saved?"#135e34":"#2d7db5",color:"#fff",border:"none",borderRadius:8,padding:"16px",fontSize:14,fontWeight:800,textTransform:"uppercase",cursor:"pointer",opacity:saving?.6:1}}>{saving?"Saving...":saved?"Saved â":"Save Trailer Info"}</button>
       </div>
     </div>
   </div>);
